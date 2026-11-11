@@ -14,7 +14,8 @@ export const useGetProjects = ({ workspaceId }: UseGetProjectsProps) => {
       const response = await apiClient.get('/projects/getList');
       const projects = response.data || [];
       
-      const mappedProjects = projects.map((p: any) => ({
+      // Khai báo model danh sách để component dùng $id/name không rơi về any khi map.
+      const mappedProjects: { $id: string; name: string; imageUrl?: string; workspaceId: string }[] = projects.map((p: any) => ({
         ...p,
         $id: String(p.projectId),
         name: p.projectName,

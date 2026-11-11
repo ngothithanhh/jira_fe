@@ -59,7 +59,8 @@ export const CreateTaskForm = ({ initialStatus, onCancel, memberOptions, project
   const { data: issueStatuses } = useGetIssueStatuses();
   const { data: projectIssueTypes } = useGetProjectIssueTypes(selectedProjectId || '');
 
-  const dynamicMemberOptions = selectedProjectId 
+  // Chuẩn hóa lựa chọn từ API/mock thành cùng kiểu trước khi render Select.
+  const dynamicMemberOptions: { id: string; name: string }[] = selectedProjectId
     ? (projectMembers ? projectMembers.map((m: any) => ({
         id: String(m.userId || m.id),
         name: m.fullName || m.userName || m.name || m.email || "Không xác định",

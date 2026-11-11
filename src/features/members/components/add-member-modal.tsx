@@ -8,7 +8,7 @@ export const AddMemberModal = () => {
   const { isOpen, setIsOpen, close } = useAddMemberModal();
 
   return (
-    <ResponsiveModal open={isOpen} onOpenChange={setIsOpen}>
+    <ResponsiveModal title="Thêm thành viên" description="Chọn người dùng và vai trò trong dự án." open={isOpen} onOpenChange={setIsOpen}>
       <AddMemberForm onCancel={close} />
     </ResponsiveModal>
   );

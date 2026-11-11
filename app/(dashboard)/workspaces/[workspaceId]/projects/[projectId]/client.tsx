@@ -1,6 +1,6 @@
 'use client';
 
-import { Pencil } from 'lucide-react';
+import { ListTodo, Pencil } from 'lucide-react';
 import Link from 'next/link';
 
 import { Analytics } from '@/components/analytics';
@@ -35,7 +35,10 @@ export const ProjectIdClient = () => {
           <p className="text-lg font-semibold">{project.name}</p>
         </div>
 
-        <div>
+        <div className="flex gap-2">
+          <Button variant="secondary" size="sm" asChild>
+            <Link href={`/projects/${project.$id}/backlog`}><ListTodo className="mr-2 size-4" />Backlog & Sprint</Link>
+          </Button>
           <Button variant="secondary" size="sm" asChild>
             <Link href={`/workspaces/${project.workspaceId}/projects/${project.$id}/settings`}>
               <Pencil className="mr-2 size-4" />

@@ -66,7 +66,8 @@ export const EditTaskForm = ({ onCancel, memberOptions, projectOptions, initialV
   const selectedProjectId = editTaskForm.watch('projectId');
   const { data: projectMembers } = useGetProjectMembers({ projectId: selectedProjectId });
 
-  const dynamicMemberOptions = selectedProjectId 
+  // Chuẩn hóa lựa chọn từ API/mock thành cùng kiểu trước khi render Select.
+  const dynamicMemberOptions: { id: string; name: string }[] = selectedProjectId
     ? (projectMembers ? projectMembers.map((m: any) => ({
         id: String(m.userId || m.id),
         name: m.fullName || m.userName || m.name || m.email || "Không xác định",

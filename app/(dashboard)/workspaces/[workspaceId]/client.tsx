@@ -107,7 +107,8 @@ export const TaskList = ({ data, total }: TaskListProps) => {
 };
 
 interface ProjectListProps {
-  data: Project[];
+  // Danh sách chỉ hiển thị tên/ảnh/ID; không đòi metadata Appwrite mà backend Spring không trả.
+  data: Pick<Project, '$id' | 'name' | 'imageUrl' | 'workspaceId'>[];
   total: number;
 }
 
