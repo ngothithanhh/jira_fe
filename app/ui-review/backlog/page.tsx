@@ -1,8 +1,6 @@
-import { notFound } from 'next/navigation';
-import { BacklogPreview } from '@/features/backlog/components/backlog-preview';
+import { redirect } from 'next/navigation';
 
-/** Trang duyệt chỉ chạy development; không đưa fixture hoặc thao tác giả vào luồng production. */
-export default function BacklogReviewPage() {
-  if (process.env.NODE_ENV === 'production') notFound();
-  return <BacklogPreview />;
+/** Giữ link cũ /ui-review/backlog: chuyển tới backlog của dự án mẫu SCR (ID 1). */
+export default function LegacyBacklogReview() {
+  redirect('/ui-review/projects/1/backlog');
 }

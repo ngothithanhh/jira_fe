@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "test:planning": "node --experimental-strip-types --test tests/planning-model.test.mjs",
+    "test:ui-demo": "node --experimental-strip-types --test tests/ui-demo-model.test.mjs",
     "lint": "next lint && eslint .",
     "lint:fix": "next lint --fix && eslint . --fix",
     "format": "prettier --check . --config .prettierrc.mjs",
