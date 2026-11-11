@@ -220,7 +220,7 @@ function ProjectSwitcher() {
   const router = useRouter();
   const projects = visibleProjects(state, me?.id);
   return (
-    <DropdownMenu>
+    <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
         <button className="hidden h-8 items-center gap-1 rounded-[3px] px-2 text-sm font-medium text-[#42526e] hover:bg-[#091e420f] data-[state=open]:bg-[#e9f2ff] data-[state=open]:text-[#0052cc] md:flex">
           Dự án <ChevronDown size={14} />
@@ -261,7 +261,7 @@ function DemoTools() {
       .map((a) => findRole(state, a.roleId)?.name)
       .join(', ') || 'Không có role hệ thống';
   return (
-    <DropdownMenu>
+    <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
         <button aria-label="Công cụ demo" className={cn('flex h-8 items-center gap-1 rounded-[3px] px-2 text-[13px] text-[#42526e] hover:bg-[#091e420f]', scenario !== 'normal' && 'bg-[#fffae6] text-[#974f0c]')}>
           <FlaskConical size={16} /> <span className="hidden lg:inline">Công cụ demo</span>
@@ -366,7 +366,7 @@ function UserMenu() {
       </Link>
     );
   return (
-    <DropdownMenu>
+    <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
         <button aria-label={`Tài khoản ${me.fullName}`} className="rounded-full p-0.5 hover:ring-2 hover:ring-[#dfe1e6]">
           <Avatar name={me.fullName} src={me.avatarUrl} size={30} />

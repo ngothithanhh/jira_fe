@@ -192,7 +192,7 @@ export function ProjectsScreen() {
     </Btn>
   ) : null;
   const menu = (p: DemoProject) => (
-    <DropdownMenu>
+    <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
         <Btn size="icon" variant="subtle" aria-label={`Thao tác dự án ${p.key}`}>
           <MoreHorizontal />
