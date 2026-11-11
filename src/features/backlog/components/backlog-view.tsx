@@ -41,7 +41,12 @@ import { cn } from '@/lib/utils';
 import type { PlanningActions, PlanningData, PlanningIssue, PlanningSprint } from '../types';
 
 const fieldClass =
-  'h-10 w-full rounded-md border border-[#d5d9e0] bg-white px-3 text-sm text-[#172b4d] outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100';
+  'h-9 w-full rounded-[3px] border border-[#dfe1e6] bg-[#fafbfc] px-3 text-sm text-[#172b4d] outline-none transition focus:border-blue-500 focus:bg-white focus:ring-1 focus:ring-blue-500';
+// Nút chỉ đổi cách hiển thị ở màn lập kế hoạch; giữ trạng thái disabled/focus và callback sẵn có.
+const primaryAction =
+  'rounded-[3px] border-transparent bg-[#0052cc] bg-none font-medium shadow-none hover:bg-[#0065ff]';
+const secondaryAction =
+  'rounded-[3px] border-transparent bg-[#ebecf0] font-medium text-[#42526e] shadow-none hover:bg-[#dfe1e6]';
 const done = (issue: PlanningIssue) => /^(done|completed|hoàn thành|đã hoàn thành)$/i.test(issue.status);
 const normalized = (text: string) =>
   text
@@ -67,7 +72,7 @@ function Person({ name, small = false }: { name: string | null; small?: boolean 
       aria-label={name ?? 'Chưa phân công'}
       className={cn(
         'inline-flex shrink-0 items-center justify-center rounded-full border-2 border-white font-semibold',
-        small ? 'size-7 text-[9px]' : 'size-8 text-[10px]',
+        small ? 'size-6 text-[9px]' : 'size-8 text-[10px]',
         name ? colors[index] : 'border-dashed !border-[#d3d9e2] bg-white text-slate-400',
       )}
     >
@@ -91,12 +96,12 @@ function Status({ issue }: { issue: PlanningIssue }) {
   return (
     <span
       className={cn(
-        'max-w-[150px] truncate rounded px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.025em]',
+        'max-w-[150px] truncate rounded-[3px] px-1.5 py-0.5 text-[10px] font-semibold uppercase',
         completed
-          ? 'bg-[#dcf4e4] text-[#216e4e]'
+          ? 'bg-[#e3fcef] text-[#006644]'
           : active
-            ? 'bg-[#e9f2ff] text-[#0c66e4]'
-            : 'bg-[#f0f1f3] text-[#626f86]',
+            ? 'bg-[#deebff] text-[#0747a6]'
+            : 'bg-[#dfe1e6] text-[#42526e]',
       )}
     >
       {issue.status}
@@ -194,36 +199,29 @@ export function BacklogView({
   }
   return (
     <>
-      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-[28px] font-semibold leading-9 tracking-tight text-[#172b4d]">Backlog</h1>
-            <span className="rounded border border-[#e3e7ed] px-2 py-0.5 text-[10px] font-medium text-[#626f86]">
-              SCRUM
-            </span>
-          </div>
-          <p className="mt-1.5 text-[12px] text-[#626f86]">
-            Sắp xếp ưu tiên hôm nay. Xây dựng những điều quan trọng ngày mai.
-          </p>
-        </div>
-        <div className="flex items-center gap-2 pt-1">
-          <Button variant="secondary" size="sm" onClick={() => setDialog('sprint')} disabled={busy}>
-            <Plus /> Tạo sprint
-          </Button>
-          <Button size="sm" onClick={() => setDialog('issue')} disabled={busy || !data.issueTypes.length}>
+      {/* Tiêu đề và hành động chính theo bố cục Jira; tạo sprint nằm sau nhóm backlog để không lặp CTA. */}
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-[24px] font-medium leading-8 text-[#172b4d]">Backlog</h1>
+        <div className="flex items-center gap-2">
+          <Button
+            className={primaryAction}
+            size="sm"
+            onClick={() => setDialog('issue')}
+            disabled={busy || !data.issueTypes.length}
+          >
             <Plus /> Tạo công việc
           </Button>
         </div>
       </div>
-      <div className="mb-6 flex flex-wrap items-center gap-3">
-        <div className="relative w-full sm:w-[260px]">
+      <div className="mb-6 flex flex-wrap items-center gap-2">
+        <div className="relative w-full sm:w-[220px]">
           <Search size={15} className="absolute left-3 top-2.5 text-[#758195]" />
           <input
             aria-label="Tìm công việc"
             placeholder="Tìm mã hoặc tên công việc"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            className="h-9 w-full rounded-md border border-[#d5d9e0] bg-white pl-9 pr-8 text-[12px] outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            className="h-8 w-full rounded-[3px] border border-[#dfe1e6] bg-[#fafbfc] pl-9 pr-8 text-[13px] outline-none focus:border-blue-500 focus:bg-white focus:ring-1 focus:ring-blue-500"
           />
           {search && (
             <button
@@ -235,8 +233,7 @@ export function BacklogView({
             </button>
           )}
         </div>
-        <div className="hidden h-6 border-l border-[#dfe1e6] sm:block" />
-        <div className="flex -space-x-2" aria-label="Thành viên được phân công">
+        <div className="ml-2 flex -space-x-2" aria-label="Thành viên được phân công">
           {people.slice(0, 4).map((name) => (
             <Person key={name} name={name} />
           ))}
@@ -250,7 +247,7 @@ export function BacklogView({
           aria-label="Lọc người phụ trách"
           value={person}
           onChange={(event) => setPerson(event.target.value)}
-          className="h-9 max-w-[180px] rounded-md border border-transparent bg-white px-2 text-[12px] outline-none hover:bg-slate-50 focus:border-blue-400"
+          className="h-8 max-w-[180px] rounded-[3px] border border-transparent bg-white px-2 text-[13px] outline-none hover:bg-[#ebecf0] focus:border-blue-400"
         >
           <option value="">Người phụ trách</option>
           <option value="__none">Chưa phân công</option>
@@ -262,7 +259,7 @@ export function BacklogView({
           onClick={() => setUnfinishedOnly((value) => !value)}
           aria-pressed={unfinishedOnly}
           className={cn(
-            'flex h-9 items-center gap-2 rounded-md px-2.5 text-[12px]',
+            'flex h-8 items-center gap-2 rounded-[3px] px-2.5 text-[13px]',
             unfinishedOnly ? 'bg-blue-50 text-blue-700' : 'text-[#626f86] hover:bg-slate-50',
           )}
         >
@@ -280,9 +277,6 @@ export function BacklogView({
             Xóa bộ lọc
           </button>
         )}
-        <span className="ml-auto hidden text-[11px] text-[#758195] xl:block">
-          {allIssues.length} công việc · {points(allIssues)} story points
-        </span>
       </div>
       {!data.issueTypes.length && (
         <p
@@ -296,7 +290,7 @@ export function BacklogView({
         <p className="mb-3 text-[11px] text-slate-500">Bỏ bộ lọc để kéo và sắp xếp toàn bộ backlog.</p>
       )}
       <DragDropContext onDragEnd={dragEnd}>
-        <div className="space-y-5">
+        <div className="space-y-6">
           {groups.map((group) => {
             const key = groupKey(group.id),
               closed = collapsed.has(key),
@@ -304,12 +298,8 @@ export function BacklogView({
             const sprint = group.sprint,
               completed = group.issues.filter(done).length;
             return (
-              <section
-                key={key}
-                aria-label={group.name}
-                className="overflow-hidden rounded-lg border border-[#dfe3e9] bg-white"
-              >
-                <div className="flex flex-wrap items-center gap-2 bg-[#f7f8f9] px-3 py-3 sm:px-4">
+              <section key={key} aria-label={group.name} className="bg-[#f4f5f7]">
+                <div className="flex min-h-11 flex-wrap items-center gap-2 px-2 py-2 sm:px-3">
                   <button
                     onClick={() => toggle(key)}
                     aria-expanded={!closed}
@@ -317,18 +307,18 @@ export function BacklogView({
                     className="flex min-w-0 items-center gap-2 rounded text-left focus-visible:outline focus-visible:outline-blue-500"
                   >
                     {closed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
-                    <span className="text-[13px] font-semibold">{group.name}</span>
+                    <span className="text-[14px] font-semibold">{group.name}</span>
                   </button>
-                  <span className="px-1 text-[11px] text-[#758195]">
+                  <span className="px-1 text-[12px] text-[#6b778c]">
                     {filtered ? `${shown.length}/${group.issues.length}` : group.issues.length} công việc
                   </span>
                   {sprint?.state === 'ACTIVE' && (
-                    <span className="rounded bg-[#e0f2e9] px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-[#216e4e]">
+                    <span className="rounded-[3px] bg-[#dfe1e6] px-1.5 py-0.5 text-[10px] font-semibold text-[#42526e]">
                       ĐANG DIỄN RA
                     </span>
                   )}
                   {sprint?.startDate && (
-                    <span className="hidden items-center gap-1.5 text-[10px] text-[#758195] xl:flex">
+                    <span className="hidden items-center gap-1.5 text-[11px] text-[#6b778c] xl:flex">
                       <CalendarDays size={12} />
                       {dateLabel(sprint.startDate)} – {dateLabel(sprint.endDate)}
                     </span>
@@ -336,13 +326,14 @@ export function BacklogView({
                   <div className="ml-auto flex items-center gap-2">
                     <span
                       title="Tổng story points"
-                      className="min-w-6 rounded-full bg-[#e9ecf0] px-1.5 py-0.5 text-center text-[10px] font-semibold text-[#626f86]"
+                      className="min-w-6 rounded-full bg-[#dfe1e6] px-1.5 py-0.5 text-center text-[11px] font-medium text-[#42526e]"
                     >
                       {points(group.issues)}
                     </span>
                     {sprint?.state === 'ACTIVE' && (
                       <Button
                         variant="secondary"
+                        className={secondaryAction}
                         size="xs"
                         onClick={() => setComplete(sprint)}
                         disabled={busy}
@@ -353,6 +344,7 @@ export function BacklogView({
                     {sprint?.state === 'FUTURE' && (
                       <Button
                         variant="secondary"
+                        className={secondaryAction}
                         size="xs"
                         disabled={
                           busy || !group.issues.length || data.sprints.some((item) => item.state === 'ACTIVE')
@@ -372,7 +364,8 @@ export function BacklogView({
                 {!closed && (
                   <>
                     {sprint?.goal && (
-                      <p className="border-t border-[#ebedf1] bg-[#fcfcfd] px-5 py-2 text-[11px] text-[#758195]">
+                      <p className="px-8 pb-2 text-[12px] text-[#6b778c]">
+                        <span className="font-medium">Mục tiêu: </span>
                         {sprint.goal}
                       </p>
                     )}
@@ -382,7 +375,7 @@ export function BacklogView({
                           ref={provided.innerRef}
                           {...provided.droppableProps}
                           className={cn(
-                            'min-h-[46px] transition-colors',
+                            'mx-2 min-h-[38px] pb-2 transition-colors',
                             snapshot.isDraggingOver && 'bg-blue-50/70',
                           )}
                         >
@@ -400,10 +393,10 @@ export function BacklogView({
                                   ref={drag.innerRef}
                                   {...drag.draggableProps}
                                   className={cn(
-                                    'group flex min-h-[51px] items-center gap-2 border-t border-[#edf0f4] bg-white px-2 sm:gap-3 sm:px-3',
+                                    'group flex min-h-[44px] items-center gap-2 border-b border-[#ebecf0] bg-white px-1.5 sm:min-h-[36px] sm:gap-2.5 sm:px-2',
                                     dragSnapshot.isDragging
-                                      ? 'rounded border border-blue-300 shadow-lg'
-                                      : 'hover:bg-[#fafbfd]',
+                                      ? 'border border-blue-300 shadow-md'
+                                      : 'hover:bg-[#ebf2f9]',
                                   )}
                                 >
                                   <button
@@ -421,15 +414,20 @@ export function BacklogView({
                                   </button>
                                   <IssueType type={issue.type} />
                                   <button
-                                    className="min-w-0 flex-1 text-left"
+                                    className="min-w-0 flex-1 text-left sm:flex sm:items-center sm:gap-3"
                                     onClick={() => setSelectedId(issue.id)}
                                   >
-                                    <span className="mr-2 inline-block text-[10px] font-medium text-[#626f86] sm:mr-3 sm:text-[11px]">
+                                    <span
+                                      className={cn(
+                                        'mr-2 inline-block shrink-0 text-[12px] text-[#6b778c] sm:mr-0',
+                                        done(issue) && 'line-through',
+                                      )}
+                                    >
                                       {issue.key}
                                     </span>
                                     <span
                                       className={cn(
-                                        'text-[12px] leading-6 text-[#253858] hover:text-[#0c66e4]',
+                                        'text-[13px] leading-6 text-[#172b4d] hover:text-[#0052cc] sm:truncate',
                                         done(issue) && 'text-[#758195]',
                                       )}
                                     >
@@ -458,7 +456,7 @@ export function BacklogView({
                                       <Equal size={15} />
                                     )}
                                   </span>
-                                  <span className="grid min-w-6 place-items-center rounded-full bg-[#f0f2f5] px-1.5 py-0.5 text-[10px] font-medium text-[#626f86]">
+                                  <span className="grid min-w-5 place-items-center rounded-full bg-[#dfe1e6] px-1 py-0.5 text-[10px] font-medium text-[#42526e]">
                                     {issue.points || '—'}
                                   </span>
                                   <Person name={issue.assignee} small />
@@ -526,14 +524,14 @@ export function BacklogView({
                     {group.id === null && (
                       <button
                         disabled={busy || !data.issueTypes.length}
-                        className="flex w-full items-center gap-2 border-t border-[#edf0f4] px-6 py-3 text-[12px] text-[#626f86] hover:bg-blue-50 hover:text-blue-600 disabled:opacity-40"
+                        className="flex w-full items-center gap-2 px-8 pb-3 pt-1 text-[13px] text-[#6b778c] hover:text-[#0052cc] disabled:opacity-40"
                         onClick={() => setDialog('issue')}
                       >
                         <Plus size={15} /> Tạo công việc
                       </button>
                     )}
                     {sprint?.state === 'ACTIVE' && group.issues.length > 0 && (
-                      <div className="flex items-center gap-3 border-t border-[#edf0f4] px-5 py-2">
+                      <div className="flex items-center gap-3 px-4 pb-2 text-[#6b778c]">
                         <span className="text-[10px] text-[#758195]">
                           {completed}/{group.issues.length} hoàn thành
                         </span>
@@ -552,22 +550,33 @@ export function BacklogView({
           })}
         </div>
       </DragDropContext>
-      <p className="mt-5 flex items-center justify-center gap-1.5 text-[10px] text-[#8993a4]">
-        <GripVertical size={12} /> Kéo để thay đổi thứ tự ưu tiên hoặc đưa công việc vào sprint
-      </p>
+      <div className="mt-3 flex justify-end">
+        <Button
+          variant="secondary"
+          className={secondaryAction}
+          size="sm"
+          onClick={() => setDialog('sprint')}
+          disabled={busy}
+        >
+          Tạo sprint
+        </Button>
+      </div>
       <Dialog
         open={dialog !== null}
         onOpenChange={(open) => {
           if (!open && !busy) setDialog(null);
         }}
       >
-        <DialogContent className="max-w-[480px] rounded-xl">
+        <DialogContent
+          className="max-w-[480px] rounded-[3px] sm:rounded-[3px]"
+          style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}
+        >
           <DialogHeader>
             <DialogTitle>{dialog === 'sprint' ? 'Tạo sprint mới' : 'Tạo công việc'}</DialogTitle>
             <DialogDescription>
               {dialog === 'sprint'
-                ? 'Đặt mục tiêu rõ ràng cho chặng đường tiếp theo của nhóm.'
-                : 'Bắt đầu từ một công việc nhỏ, tạo nên một kết quả lớn.'}
+                ? 'Nhập tên, mục tiêu và thời gian của sprint.'
+                : 'Công việc mới sẽ được thêm vào backlog của dự án.'}
             </DialogDescription>
           </DialogHeader>
           {dialog && (
@@ -611,7 +620,10 @@ export function BacklogView({
           if (!open && !busy) setComplete(null);
         }}
       >
-        <DialogContent className="max-w-[480px] rounded-xl">
+        <DialogContent
+          className="max-w-[480px] rounded-[3px] sm:rounded-[3px]"
+          style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}
+        >
           <DialogHeader>
             <DialogTitle>Hoàn tất {complete?.name}</DialogTitle>
             <DialogDescription>Công việc đã hoàn thành được giữ lại trong lịch sử sprint.</DialogDescription>
@@ -648,10 +660,18 @@ export function BacklogView({
               </select>
             </label>
             <DialogFooter className="mt-6">
-              <Button type="button" variant="secondary" onClick={() => setComplete(null)} disabled={busy}>
+              <Button
+                className={secondaryAction}
+                type="button"
+                variant="secondary"
+                onClick={() => setComplete(null)}
+                disabled={busy}
+              >
                 Hủy
               </Button>
-              <Button disabled={busy}>Hoàn tất sprint</Button>
+              <Button className={primaryAction} disabled={busy}>
+                Hoàn tất sprint
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>
@@ -662,7 +682,10 @@ export function BacklogView({
           if (!open) setSelectedId(null);
         }}
       >
-        <SheetContent className="w-full overflow-y-auto px-6 sm:w-[540px] sm:max-w-[540px]">
+        <SheetContent
+          className="w-full overflow-y-auto px-6 sm:w-[540px] sm:max-w-[540px]"
+          style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}
+        >
           <SheetHeader className="mb-7 text-left">
             <div className="mb-4 flex items-center gap-2">
               <span className="rounded bg-blue-50 p-1 text-blue-600">
@@ -671,7 +694,7 @@ export function BacklogView({
               <span className="text-xs font-medium text-slate-500">{selected?.key}</span>
             </div>
             <SheetTitle className="pr-5 text-xl leading-8 text-[#172b4d]">{selected?.title}</SheetTitle>
-            <SheetDescription>Thông tin và tiêu chí hoàn thành công việc.</SheetDescription>
+            <SheetDescription>Chi tiết công việc</SheetDescription>
           </SheetHeader>
           {selected && (
             <IssueDetails
@@ -731,7 +754,7 @@ function PlanningForm({
             Mục tiêu sprint
             <textarea
               name="goal"
-              placeholder="Kết quả quan trọng nhất nhóm muốn đạt được…"
+              placeholder="Nhập mục tiêu sprint"
               rows={3}
               className={`${fieldClass} mt-2 h-auto py-3`}
             />
@@ -772,10 +795,16 @@ function PlanningForm({
         </div>
       )}
       <DialogFooter className="!mt-6 border-t pt-4">
-        <Button type="button" variant="secondary" onClick={onCancel} disabled={busy}>
+        <Button
+          className={secondaryAction}
+          type="button"
+          variant="secondary"
+          onClick={onCancel}
+          disabled={busy}
+        >
           Hủy
         </Button>
-        <Button disabled={busy || (mode === 'issue' && !data.issueTypes.length)}>
+        <Button className={primaryAction} disabled={busy || (mode === 'issue' && !data.issueTypes.length)}>
           {busy ? 'Đang lưu…' : mode === 'sprint' ? 'Tạo sprint' : 'Tạo công việc'}
         </Button>
       </DialogFooter>
@@ -799,22 +828,22 @@ function IssueDetails({
   return (
     <div className="space-y-6">
       <Status issue={issue} />
-      <div className="rounded-lg border border-[#e1e5eb]">
-        <div className="grid grid-cols-[130px_1fr] items-center gap-3 border-b px-4 py-3 text-xs">
+      <div className="border-y border-[#dfe1e6]">
+        <div className="grid grid-cols-[130px_1fr] items-center gap-3 py-2 text-[13px]">
           <span className="text-slate-500">Người phụ trách</span>
           <span className="flex items-center gap-2">
             <Person name={issue.assignee} small />
             {issue.assignee ?? 'Chưa phân công'}
           </span>
         </div>
-        <div className="grid grid-cols-[130px_1fr] items-center gap-3 border-b px-4 py-3 text-xs">
+        <div className="grid grid-cols-[130px_1fr] items-center gap-3 py-2 text-[13px]">
           <span className="text-slate-500">Loại công việc</span>
           <span className="flex items-center gap-2">
             <IssueType type={issue.type} />
             {issue.type}
           </span>
         </div>
-        <label className="grid grid-cols-[130px_1fr] items-center gap-3 px-4 py-3 text-xs">
+        <label className="grid grid-cols-[130px_1fr] items-center gap-3 py-2 text-[13px]">
           <span className="text-slate-500">Story points</span>
           <input
             aria-label="Story points"
@@ -834,10 +863,11 @@ function IssueDetails({
           value={description}
           onChange={(event) => setDescription(event.target.value)}
           rows={10}
-          className="mt-3 w-full rounded-lg border border-[#dfe3e9] p-3 text-[12px] font-normal leading-6 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50"
+          className="mt-3 w-full rounded-[3px] border border-[#dfe1e6] p-3 text-[13px] font-normal leading-6 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
         />
       </label>
       <Button
+        className={primaryAction}
         disabled={busy || !changed || !Number.isInteger(estimate) || estimate < 0 || estimate > 10000}
         onClick={() => save({ description, points: estimate })}
       >
