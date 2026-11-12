@@ -199,7 +199,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         {sidebar}
       </aside>
       <main id="main" className="min-w-0 lg:ml-[240px]">
-        <div className="mx-auto max-w-[1600px] px-4 pb-12 pt-5 sm:px-6 lg:px-8">
+        <div className="relative mx-auto max-w-[1600px] px-4 pb-12 pt-5 sm:px-6 lg:px-8">
           {!me ? (
             <StateView kind="unauthenticated" action={<Link className="text-sm font-medium text-[#0052cc] hover:underline" href={routes.signIn}>Tới trang đăng nhập</Link>} />
           ) : !me.enabled ? (

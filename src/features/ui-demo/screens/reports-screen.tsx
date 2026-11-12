@@ -183,7 +183,7 @@ function BurndownTab({ sprintId }: { sprintId: number }) {
             { color: '#c1c7d0', label: 'Đường tham chiếu từ commitment' },
           ]}
         />
-        <div className="mt-3 overflow-x-auto">
+        <div className="relative mt-3 overflow-x-auto">
           <BurndownChart events={events} start={sprint.startDate} end={sprint.endDate} committed={snap?.baselineAvailable ? snap.committedPoints : null} />
         </div>
         <p className="mt-2 text-xs text-[#6b778c]">Mỗi điểm là một lần số liệu thay đổi. Dùng Tab để duyệt từng điểm bằng bàn phím.</p>
@@ -232,7 +232,7 @@ function VelocityTab() {
             { color: '#36b37e', label: 'Hoàn thành khi đóng' },
           ]}
         />
-        <div className="mt-3 overflow-x-auto">
+        <div className="relative mt-3 overflow-x-auto">
           <VelocityChart rows={rows.map((r) => ({ id: r.sprint.id, name: r.sprint.name, committed: r.committed, completed: r.completed, available: r.available }))} />
         </div>
         <p className="mt-2 text-sm text-[#42526e]">

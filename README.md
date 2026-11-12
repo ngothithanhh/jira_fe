@@ -1,4 +1,13 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Hệ thống quản lý dự án — Frontend
+
+Source giao diện đầy đủ và phần 1 nối backend nằm trên nhánh `feat/backlog-ui-review`.
+
+- [Bàn giao làm trên hai máy / prompt cho agent backend](docs/REMOTE_COLLABORATION.md)
+- [Phần 1 đã nối: cấu hình, kiểm thử và luồng kiểm tra](docs/CONNECTED_PART1.md)
+- [Plan tích hợp theo từng phần](docs/BACKEND_INTEGRATION_PLAN.md)
+- Backend tương ứng: [ngothithanhh/jira — feat/backend-integration](https://github.com/ngothithanhh/jira/tree/feat/backend-integration).
+
+Ứng dụng thật: `/app/sign-in`; preview fixture: `/ui-review/projects` (chỉ development). Git không chứa DB/credential cá nhân. Phần hướng dẫn Next.js gốc dưới đây là tham khảo; đọc các tài liệu trên để chạy đúng ứng dụng.
 
 ## Getting Started
 

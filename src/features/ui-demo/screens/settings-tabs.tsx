@@ -41,7 +41,7 @@ export function TypesTab() {
   const [adding, setAdding] = useState(available[0]?.id ?? 0);
   const used = (typeId: number) => projectIssues(state, project.id).filter((i) => i.typeId === typeId).length;
   return (
-    <div className="max-w-3xl space-y-4">
+    <div className="relative max-w-3xl space-y-4 overflow-x-auto">
       <p className="text-sm text-[#6b778c]">
         Danh mục loại công việc dùng chung toàn hệ thống.{' '}
         {canConfig && (
@@ -123,7 +123,7 @@ export function BoardsTab({ onConfigure }: { onConfigure: (boardId: number) => v
   const [renaming, setRenaming] = useState<DemoBoard | null>(null);
   const [removing, setRemoving] = useState<DemoBoard | null>(null);
   return (
-    <div className="max-w-3xl space-y-4">
+    <div className="relative max-w-3xl space-y-4 overflow-x-auto">
       {!canBoard && <InlineAlert tone="info">Bạn chỉ được xem cấu hình bảng.</InlineAlert>}
       {!boards.length ? (
         <EmptyState title="Chưa có bảng" description="Tạo bảng để theo dõi công việc trong sprint." />
@@ -255,7 +255,7 @@ export function ColumnsTab({ initialBoardId }: { initialBoardId: number | null }
       </div>
       {!canBoard && <InlineAlert tone="info">Bạn chỉ được xem cấu hình cột.</InlineAlert>}
       {!columns.length && <EmptyState title="Bảng chưa có cột" description="Thêm cột rồi ánh xạ trạng thái vào cột." />}
-      <div className="overflow-x-auto">
+      <div className="relative overflow-x-auto">
         <table className={tableClass}>
           <thead>
             <tr>
@@ -427,7 +427,7 @@ export function WorkflowTab() {
   const { state } = useDemo();
   const canConfig = useCan('MANAGE_CONFIG');
   return (
-    <div className="max-w-3xl space-y-4">
+    <div className="relative max-w-3xl space-y-4 overflow-x-auto">
       <InlineAlert tone="info">
         Workflow áp dụng cho mọi dự án, không riêng {useProject().key}.{' '}
         {canConfig ? (

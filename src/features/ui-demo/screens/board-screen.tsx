@@ -180,7 +180,7 @@ export function BoardScreen() {
             <EmptyState title="Bảng chưa có cột" description="Thêm cột và ánh xạ trạng thái trong cấu hình bảng." action={canBoard ? <LinkBtn variant="primary" href={`${routes.project(project.id, 'settings')}?tab=columns&boardId=${board?.id}`}>Cấu hình cột</LinkBtn> : undefined} />
           )}
           <DragDropContext onDragEnd={onDragEnd}>
-            <div className="flex gap-3 overflow-x-auto pb-3" role="list" aria-label="Các cột của bảng">
+            <div className="relative flex gap-3 overflow-x-auto pb-3" role="list" aria-label="Các cột của bảng">
               {view?.columns.map((col) => {
                 const cards = col.issues.filter(visible);
                 return (
@@ -270,7 +270,7 @@ export function BoardScreen() {
               </p>
               <ul className="flex flex-wrap gap-2">
                 {view.unmapped.filter(visible).map((i) => (
-                  <li key={i.id} className="flex items-center gap-2 rounded-[3px] bg-white px-2 py-1.5 text-[13px] shadow-[0_1px_1px_rgba(9,30,66,0.25)]">
+                  <li key={i.id} className="flex max-w-full flex-wrap items-center gap-2 rounded-[3px] bg-white px-2 py-1.5 text-[13px] shadow-[0_1px_1px_rgba(9,30,66,0.25)]">
                     <IssueTypeIcon typeId={i.typeId} />
                     <button className="text-[#6b778c] hover:underline" onClick={() => open(i.id)}>
                       {i.key}

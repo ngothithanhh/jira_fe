@@ -59,7 +59,7 @@ export function MembersScreen() {
       {!members.length ? (
         <EmptyState title="Không có thành viên khớp" action={<Btn onClick={() => (setQuery(''), setRoleFilter(0))}>Xóa bộ lọc</Btn>} />
       ) : (
-        <div className="overflow-x-auto">
+        <div className="relative overflow-x-auto">
           <table className={tableClass}>
             <thead>
               <tr>

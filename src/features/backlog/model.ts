@@ -1,5 +1,30 @@
 import type { PlanningData, PlanningIssue } from './types';
 
+// Chỉ dùng trong bộ trang duyệt; đây không phải workflow hoặc cấu hình board lấy từ backend.
+export const reviewBoardStatuses = ['Cần làm', 'Đang thực hiện', 'Hoàn thành'] as const;
+
+/** Kéo card review chỉ sửa sprint ACTIVE đã chọn, giữ issue của các sprint khác và snapshot đầu vào. */
+export function moveReviewCard(data: PlanningData, sprintId: number, id: number, status: string, position: number): PlanningData {
+  const sprint = data.sprints.find(item => item.id === sprintId && item.state === 'ACTIVE');
+  const selected = sprint?.issues.find(issue => issue.id === id);
+  if (!sprint || !selected || !reviewBoardStatuses.some(value => value === status)) throw new Error('Không tìm thấy card hoặc cột trong sprint đang diễn ra.');
+  const remaining = sprint.issues.filter(issue => issue.id !== id);
+  const target = remaining.filter(issue => issue.status === status);
+  if (!Number.isInteger(position) || position < 0 || position > target.length) throw new Error('Vị trí card không hợp lệ.');
+  target.splice(position,0,{...selected,status,version:(selected.version ?? 0)+1});
+  const ordered = reviewBoardStatuses.flatMap(column => column === status ? target : remaining.filter(issue => issue.status === column));
+  // Status lạ từ fixture mới vẫn được giữ trong state; không làm mất issue ngoài ba cột mẫu.
+  ordered.push(...remaining.filter(issue => !reviewBoardStatuses.some(value => value === issue.status)));
+  return {...data,sprints:data.sprints.map(item => item.id === sprintId ? {...item,issues:ordered} : item)};
+}
+
+/** Đổi tên/mô tả bằng state review. Key chỉ đọc, không đổi projectId hay các quan hệ issue. */
+export function renamedReviewProject(data: PlanningData, name: string): PlanningData {
+  const trimmed = name.trim();
+  if (!trimmed || trimmed.length > 100) throw new Error('Tên dự án cần từ 1 đến 100 ký tự.');
+  return {...data,projectName:trimmed};
+}
+
 /** ID là issues.issue_id, không phải issue_number. DTO thiếu user/parent vẫn giữ null đúng nghĩa. */
 export function mapPlanningIssue(dto: IssueDto): PlanningIssue {
   return {

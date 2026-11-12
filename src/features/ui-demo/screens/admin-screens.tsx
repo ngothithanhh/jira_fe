@@ -23,7 +23,7 @@ export function AdminGuard({ perm, children }: { perm: PermissionCode; children:
         }
       />
     );
-  return <Screen>{children}</Screen>;
+  return (<div className="relative overflow-x-auto"><Screen>{children}</Screen></div>);
 }
 
 /** Tổng quan quản trị: mọi số đếm tính từ DemoState hiện tại. */
@@ -92,7 +92,7 @@ export function AdminUsersScreen() {
       {!users.length ? (
         <EmptyState title="Không có người dùng khớp" />
       ) : (
-        <div className="overflow-x-auto">
+        <div className="relative overflow-x-auto">
           <table className={tableClass}>
             <thead>
               <tr>

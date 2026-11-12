@@ -506,7 +506,7 @@ export function Card({ title, children, action, className }: { title?: string; c
           {action}
         </div>
       )}
-      <div className="p-4">{children}</div>
+      <div className="relative overflow-x-auto p-4">{children}</div>
     </section>
   );
 }

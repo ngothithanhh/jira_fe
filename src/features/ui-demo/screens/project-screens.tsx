@@ -232,7 +232,7 @@ export function ProjectsScreen() {
       ) : !projects.length ? (
         <EmptyState title="Không có dự án khớp" description={`Không tìm thấy dự án với "${query}".`} action={<Btn onClick={() => setQuery('')}>Xóa tìm kiếm</Btn>} />
       ) : view === 'table' ? (
-        <div className="overflow-x-auto">
+        <div className="relative overflow-x-auto">
           <table className={tableClass}>
             <thead>
               <tr>
@@ -346,7 +346,7 @@ export function OverviewScreen() {
         {stat('Đã hoàn thành', done.length)}
         {stat('Thành viên', projectMembers(state, project.id).length)}
       </div>
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
         <div className="space-y-4">
           {setupPending && (
             <Card title="Thiết lập dự án">

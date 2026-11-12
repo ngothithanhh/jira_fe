@@ -140,7 +140,7 @@ export function IssuesScreen() {
         <EmptyState title="Không có công việc khớp bộ lọc" description="Thử bỏ bớt điều kiện lọc." action={<Btn onClick={() => setFilter(EMPTY_FILTERS)}>Xóa bộ lọc</Btn>} />
       ) : (
         <>
-          <div className="overflow-x-auto">
+          <div className="relative overflow-x-auto">
             <table className={tableClass}>
               <thead>
                 <tr>

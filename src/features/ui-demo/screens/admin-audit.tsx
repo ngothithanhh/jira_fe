@@ -46,7 +46,7 @@ export function AdminAuditScreen() {
         <EmptyState title="Không có bản ghi khớp bộ lọc" />
       ) : (
         <>
-          <div className="overflow-x-auto">
+          <div className="relative overflow-x-auto">
             <table className={tableClass}>
               <thead><tr><th className={thClass}>Thời điểm</th><th className={thClass}>Người thực hiện</th><th className={thClass}>Hành động</th><th className={thClass}>Đối tượng</th><th className={thClass}>Chi tiết</th></tr></thead>
               <tbody>

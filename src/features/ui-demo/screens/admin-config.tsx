@@ -58,7 +58,7 @@ export function AdminRolesScreen() {
           </Btn>
         }
       />
-      <div className="mb-6 overflow-x-auto">
+      <div className="relative mb-6 overflow-x-auto">
         <table className={tableClass}>
           <thead>
             <tr>
@@ -97,7 +97,7 @@ export function AdminRolesScreen() {
         </table>
       </div>
       <h2 className="mb-2 text-sm font-semibold">Ma trận quyền</h2>
-      <div className="overflow-x-auto">
+      <div className="relative overflow-x-auto">
         <table className={tableClass}>
           <thead>
             <tr>

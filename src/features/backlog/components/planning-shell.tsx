@@ -10,12 +10,15 @@ import {
   Grid2X2,
   LayoutGrid,
   ListTodo,
+  ListChecks,
   Menu,
   Settings2,
   Users,
   X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+
+export type PlanningPage = 'backlog' | 'board' | 'issues' | 'members' | 'settings';
 
 /**
  * Vẽ khung Backlog cho project thật hoặc preview, chỉ đọc tên/mã/ID dự án từ props.
@@ -27,17 +30,33 @@ export function PlanningShell({
   projectKey,
   projectId,
   review = false,
+  page = 'backlog',
   children,
 }: {
   projectName: string;
   projectKey: string;
   projectId: number;
   review?: boolean;
+  page?: PlanningPage;
   children: ReactNode;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const root = `/workspaces/${projectId}/projects/${projectId}`;
   const navClass = 'flex items-center gap-3 rounded-[3px] px-3 py-2 text-[14px]';
+  // Review dùng Link thật và provider chung; production vẫn trỏ tới các trang/API có sẵn.
+  const planningLinks = [
+    { page: 'backlog' as const, name: 'Backlog', icon: ListTodo, href: review ? '/ui-review/backlog' : `/projects/${projectId}/backlog` },
+    { page: 'board' as const, name: 'Bảng công việc', icon: LayoutGrid, href: review ? '/ui-review/board' : `${root}?task-view=kanban` },
+    { page: 'issues' as const, name: 'Công việc', icon: ListChecks, href: review ? '/ui-review/issues' : `${root}?task-view=table` },
+  ];
+  const projectLinks = [
+    { page: 'members' as const, name: 'Thành viên', icon: Users, href: review ? '/ui-review/members' : root },
+    { page: 'settings' as const, name: 'Cài đặt dự án', icon: Settings2, href: review ? '/ui-review/settings' : `${root}/settings` },
+  ];
+  const navigation = (items: typeof planningLinks | typeof projectLinks) => items.map(item => {
+    const Icon = item.icon;
+    return <Link key={item.page} href={item.href} aria-current={page === item.page ? 'page' : undefined} onClick={() => setMobileOpen(false)} className={cn(navClass,page === item.page ? 'bg-[#e4e8f0] font-medium text-[#0052cc]' : 'hover:bg-[#ebecf0]')}><Icon size={20}/>{item.name}</Link>;
+  });
   return (
     <div
       className="jira-planning min-h-screen bg-white text-[#172b4d]"
@@ -101,21 +120,7 @@ export function PlanningShell({
         </div>
         <p className="mb-2 px-3 text-[11px] font-semibold uppercase text-[#6b778c]">Lập kế hoạch</p>
         <nav className="space-y-0.5" aria-label="Điều hướng lập kế hoạch">
-          <div className={cn(navClass, 'bg-[#e4e8f0] font-medium text-[#0052cc]')} aria-current="page">
-            <ListTodo size={20} />
-            Backlog
-          </div>
-          {review ? (
-            <div aria-disabled="true" className={cn(navClass, 'text-[#8993a4]')}>
-              <LayoutGrid size={20} />
-              Sprint đang diễn ra
-            </div>
-          ) : (
-            <Link href={root} className={cn(navClass, 'hover:bg-[#ebecf0]')}>
-              <LayoutGrid size={20} />
-              Sprint đang diễn ra
-            </Link>
-          )}
+          {navigation(planningLinks)}
           <div aria-disabled="true" className={cn(navClass, 'text-[#8993a4]')}>
             <BarChart3 size={20} />
             Báo cáo
@@ -123,29 +128,7 @@ export function PlanningShell({
         </nav>
         <div className="mx-3 my-5 border-t border-[#dfe1e6]" />
         <nav className="space-y-0.5" aria-label="Cài đặt dự án">
-          {review ? (
-            <>
-              <div aria-disabled="true" className={cn(navClass, 'text-[#8993a4]')}>
-                <Users size={20} />
-                Thành viên
-              </div>
-              <div aria-disabled="true" className={cn(navClass, 'text-[#8993a4]')}>
-                <Settings2 size={20} />
-                Cài đặt dự án
-              </div>
-            </>
-          ) : (
-            <>
-              <Link href={root} className={cn(navClass, 'hover:bg-[#ebecf0]')}>
-                <Users size={20} />
-                Thành viên
-              </Link>
-              <Link href={`${root}/settings`} className={cn(navClass, 'hover:bg-[#ebecf0]')}>
-                <Settings2 size={20} />
-                Cài đặt dự án
-              </Link>
-            </>
-          )}
+          {navigation(projectLinks)}
         </nav>
       </aside>
       <main className="min-w-0 lg:ml-[240px]">
