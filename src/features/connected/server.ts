@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server.js';
 import { issueBody, issueRoute, type IssueRoute } from './issues/contract.ts';
 import { boardBody, boardRoute, type BoardAction } from './board/contract.ts';
+import { memberBody, memberRoute } from './members/contract.ts';
 
 const ACCESS = 'jira_access';
 const REFRESH = 'jira_refresh';
@@ -74,10 +75,12 @@ export async function backendRoute(request: Request, path: string[]) {
   if (projectItem && Number(projectItem[1]) > 2147483647) return failure(400, 'ID dự án không hợp lệ.');
   const readAction = request.method === 'GET' && (['auth/me', 'account/context', 'projects/getList'].includes(route) || !!projectItem);
   const projectWrite = (request.method === 'POST' && route === 'projects/create') || (!!projectItem && ['PATCH', 'DELETE'].includes(request.method));
-  const protectedAction = readAction || projectWrite || !!issue || !!board;
+  const member = memberRoute(route, request.method);
+  // Giữ cả board và C1: whitelist riêng, cùng kiểm cookie/Origin của luồng connected đã có.
+  const protectedAction = readAction || projectWrite || !!issue || !!board || !!member;
   if (!authAction && !protectedAction) return failure(404, 'Chức năng chưa được kết nối.');
   // Tất cả mutation dùng cookie đều kiểm Origin; public auth vẫn không nhận Bearer cũ.
-  if ((authAction || projectWrite || issue?.write || board?.write) && !trustedOrigin(request)) return failure(403, 'Nguồn yêu cầu không hợp lệ.');
+  if ((authAction || projectWrite || issue?.write || board?.write || (member && member !== 'roles')) && !trustedOrigin(request)) return failure(403, 'Nguồn yêu cầu không hợp lệ.');
 
   // Chỉ chuyển query projectId hợp lệ; không chuyển actorId hoặc URL upstream từ người gọi.
   let suffix = issue?.suffix || board?.suffix || '';
@@ -132,6 +135,12 @@ export async function backendRoute(request: Request, path: string[]) {
     const raw = await request.text();
     if (raw.length > 1048576) return failure(413, 'Dữ liệu quá dài.');
     try { body = issueBody(issue.kind, JSON.parse(raw)); }
+    catch (error) { return failure(400, error instanceof SyntaxError ? 'Dữ liệu không hợp lệ.' : (error as Error).message); }
+  }
+  if (member === 'search' || member === 'add' || member === 'role') {
+    const raw = await request.text();
+    if (raw.length > 8192) return failure(413, 'Dữ liệu quá dài.');
+    try { body = memberBody(member, JSON.parse(raw)); }
     catch (error) { return failure(400, error instanceof SyntaxError ? 'Dữ liệu không hợp lệ.' : (error as Error).message); }
   }
 
