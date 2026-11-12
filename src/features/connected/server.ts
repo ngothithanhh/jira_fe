@@ -7,6 +7,8 @@ import { collaborationRoute, commentBody, readAttachment, readAttachmentContent,
 import { configurationRoute,configurationBody,type ConfigurationAction } from './configuration/contract.ts';
 import {adminUserRoute,adminUserBody,type AdminUserAction} from './admin-users/contract.ts';
 import {adminRoleRoute,roleBody} from './admin-roles/contract.ts';
+import { verificationRoute } from './registration/contract.ts';
+import { verificationBackend } from './registration/server.ts';
 
 const ACCESS = 'jira_access';
 const REFRESH = 'jira_refresh';
@@ -75,6 +77,11 @@ function validRouteId(id: string | undefined) {
  */
 export async function backendRoute(request: Request, path: string[]) {
   const route = path.join('/');
+  const verification = verificationRoute(route, request.method);
+  if (verification) return verificationBackend(request, verification, {
+    access: readCookie(request, ACCESS), trustedOrigin: trustedOrigin(request),
+    cookie: (name) => readCookie(request, name),
+  });
   let adminRole:ReturnType<typeof adminRoleRoute>;
   try{adminRole=adminRoleRoute(route,request.method,new URL(request.url).searchParams);}catch(error){return failure(400,(error as Error).message);}
   // API issue chỉ mở theo whitelist riêng, kiểm query trước khi đọc cookie hay gọi Spring Boot.
@@ -85,7 +92,7 @@ export async function backendRoute(request: Request, path: string[]) {
   let adminUser: AdminUserAction | null;
   try { const query=new URL(request.url).searchParams; issue = issueRoute(route, request.method, query); board = boardRoute(route, request.method, query); collaboration=collaborationRoute(route,request.method,query); configuration=configurationRoute(route,request.method,query); adminUser=adminUserRoute(route,request.method,query); }
   catch (error) { return failure(400, (error as Error).message); }
-  const authAction = request.method === 'POST' && /^auth\/(login|register|refresh|logout)$/.test(route);
+  const authAction = request.method === 'POST' && /^auth\/(login|refresh|logout)$/.test(route);
   const projectItem = /^projects\/([1-9]\d*)$/.exec(route);
   if (projectItem && Number(projectItem[1]) > 2147483647) return failure(400, 'ID dự án không hợp lệ.');
   const projectWrite = (request.method === 'POST' && route === 'projects/create') || (!!projectItem && ['PATCH', 'DELETE'].includes(request.method));
@@ -156,7 +163,7 @@ export async function backendRoute(request: Request, path: string[]) {
     const raw=await request.text();if(raw.length>65536)return failure(413,'Bình luận quá dài.');
     try{body=commentBody(collaboration.kind,JSON.parse(raw));}catch(error){return failure(400,error instanceof SyntaxError?'JSON không hợp lệ.':(error as Error).message);}
   }
-  if (route === 'auth/login' || route === 'auth/register') {
+  if (route === 'auth/login') {
     // Giới hạn form và chỉ chuyển các trường hợp đồng; không nhận quyền/role hoặc refresh token từ body browser.
     const raw = await request.text();
     if (raw.length > 8192) return failure(413, 'Thông tin đăng nhập quá dài.');
@@ -164,13 +171,7 @@ export async function backendRoute(request: Request, path: string[]) {
     try { input = JSON.parse(raw); } catch { return failure(400, 'Dữ liệu không hợp lệ.'); }
     if (!input || typeof input.email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.email) || input.email.length > 100
       || typeof input.password !== 'string' || !input.password || Buffer.byteLength(input.password, 'utf8') > 72) return failure(400, 'Email hoặc mật khẩu không hợp lệ.');
-    const payload: Record<string, string> = { email: input.email.trim(), password: input.password };
-    if (route === 'auth/register') {
-      if (input.password.length < 8 || typeof input.userName !== 'string' || !input.userName.trim() || input.userName.trim().length > 50
-        || typeof input.fullName !== 'string' || input.fullName.trim().length > 100) return failure(400, 'Tên hoặc mật khẩu đăng ký không hợp lệ.');
-      payload.userName = input.userName.trim(); payload.fullName = input.fullName.trim();
-    }
-    body = JSON.stringify(payload);
+    body = JSON.stringify({ email: input.email.trim(), password: input.password });
   } else if (authAction) body = JSON.stringify({ refreshToken: refresh });
   if (projectWrite && request.method !== 'DELETE') {
     // Chỉ cho phép tên/mô tả và key khi tạo; lead/ID/quyền/counter từ browser bị loại bỏ.
@@ -249,7 +250,6 @@ export async function backendRoute(request: Request, path: string[]) {
       if (upstream.status === 403) message = 'Bạn không có quyền thực hiện.';
       if (upstream.status === 404) message = 'Không tìm thấy dữ liệu.';
       if (upstream.status === 409) message = 'Dữ liệu đã thay đổi hoặc bị trùng. Vui lòng kiểm tra lại.';
-      if (upstream.status === 409 && route === 'auth/register') message = 'Email đã được sử dụng. Vui lòng đăng nhập hoặc dùng email khác.';
       if (upstream.status === 409 && route === 'projects/create') message = 'Mã dự án đã tồn tại. Vui lòng dùng mã khác.';
       if(upstream.status===409&&adminUser)message='Phải giữ ít nhất một quản trị viên đang hoạt động. Tải lại để kiểm tra quyền và trạng thái mới nhất.';
       if (upstream.status === 409 && projectItem && request.method === 'DELETE') message = 'Dự án còn dữ liệu liên kết nên chưa thể xóa.';
