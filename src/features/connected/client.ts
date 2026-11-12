@@ -135,6 +135,30 @@ async function withMutationActor<T>(userId: number, isCurrent: () => boolean, di
 
 type PasswordOutcome = 'changed' | 'uncertain' | 'expired';
 
+/** Quản trị users ghi một lần dưới khóa phiên. Tự khóa kết thúc phiên trước nhả khóa vì BE đã thu hồi JWT. */
+export async function adminUserMutation(path:string,userId:number,init:RequestInit,isCurrent:()=>boolean,
+  onEnded:(outcome:'disabled'|'uncertain'|'expired')=>void):Promise<{ended:boolean}>{
+  const selfDisable=path===`admin/users/${userId}/enabled`&&init.method==='PATCH'
+    &&typeof init.body==='string'&&JSON.parse(init.body).enabled===false;
+  return withMutationActor(userId,isCurrent,async()=>{
+    // Lưu mốc như đổi mật khẩu để request đọc/refresh đang chờ không khôi phục phiên đã tự khóa.
+    const end=(outcome:'disabled'|'uncertain'|'expired',cleared:boolean)=>{
+      const show=isCurrent();if(!cleared)markLogoutPending();
+      localStorage.setItem(PASSWORD_SESSION_REVISION,crypto.randomUUID());announceSession('ended');if(show)onEnded(outcome);
+      return {ended:true};
+    };
+    let response:Response;
+    try{response=await send(path,init);}catch(error){if(selfDisable)return end('uncertain',false);throw error;}
+    if(selfDisable){
+      const cleared=response.headers.get('X-Jira-Session-Cleared')==='1';
+      if(response.status===204||response.status>=500||response.status===401)
+        return end(response.status===204&&cleared?'disabled':response.status===401?'expired':'uncertain',cleared);
+    }
+    // 403/404/409 xác định không ghi giữ phiên; target khác không ảnh hưởng cookie admin.
+    await readResponse(response);return {ended:false};
+  });
+}
+
 /** Tải byte dưới cùng khóa/actor với phiên; chỉ caller còn hiệu lực mới nhận Blob để tạo preview/download local. */
 export async function connectedFile(path:string,userId:number,isCurrent:()=>boolean) {
   return withMutationActor(userId,isCurrent,async()=>{

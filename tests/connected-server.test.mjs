@@ -20,7 +20,7 @@ async function withBackend(fn, run) {
 
 test('unknown path/method and foreign origin stop before upstream', async () => {
   await withBackend(() => { assert.fail('must not call backend'); }, async () => {
-    assert.equal((await backendRoute(request('admin/users'), ['admin', 'users'])).status, 404);
+    assert.equal((await backendRoute(request('admin/unknown'), ['admin', 'unknown'])).status, 404);
     assert.equal((await backendRoute(request('projects/getList', { method: 'DELETE' }), ['projects', 'getList'])).status, 404);
     assert.equal((await backendRoute(request('auth/login', { method: 'POST', headers: { origin: 'https://evil.example' }, body: '{}' }), ['auth', 'login'])).status, 403);
     assert.equal((await backendRoute(request('auth/refresh', { method: 'POST' }), ['auth', 'refresh'])).status, 403);

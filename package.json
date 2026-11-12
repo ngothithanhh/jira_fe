@@ -8,7 +8,7 @@
     "start": "next start",
     "test:planning": "node --experimental-strip-types --test tests/planning-model.test.mjs",
     "test:ui-demo": "node --experimental-strip-types --test tests/ui-demo-model.test.mjs",
-    "test:connected": "node --experimental-strip-types --test tests/connected-server.test.mjs tests/connected-client.test.mjs tests/connected-projects.test.mjs tests/connected-issues.test.mjs tests/connected-board.test.mjs tests/connected-members.test.mjs tests/connected-account.test.mjs tests/connected-collaboration.test.mjs tests/connected-configuration.test.mjs",
+    "test:connected": "node --experimental-strip-types --test tests/connected-server.test.mjs tests/connected-client.test.mjs tests/connected-projects.test.mjs tests/connected-issues.test.mjs tests/connected-board.test.mjs tests/connected-members.test.mjs tests/connected-account.test.mjs tests/connected-collaboration.test.mjs tests/connected-configuration.test.mjs tests/connected-admin-users.test.mjs",
     "test:connected:browser": "node tests/connected-browser.smoke.cjs",
     "test:projects:browser": "node tests/connected-projects.browser.cjs",
     "lint": "next lint && eslint .",
@@ -21,7 +21,8 @@
     "test:notifications-reports:browser": "node tests/connected-notifications-reports.browser.cjs",
     "test:account:browser": "node tests/connected-account.browser.cjs",
     "test:collaboration:browser": "node tests/connected-collaboration.browser.cjs",
-    "test:configuration:browser": "node tests/connected-configuration.browser.cjs"
+    "test:configuration:browser": "node tests/connected-configuration.browser.cjs",
+    "test:admin-users:browser": "node tests/connected-admin-users.browser.cjs"
   },
   "author": {
     "name": "Sanidhya Kumar Verma",
