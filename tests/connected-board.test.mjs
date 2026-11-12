@@ -46,3 +46,43 @@ test('BFF sends Bearer/whitelisted move only after Origin; conflict retains cook
     const r=await backendRoute(new Request(origin+'/api/backend/boards/7/issues/2/move',init),['boards','7','issues','2','move']);assert.equal(r.status,409);assert.match((await r.json()).message,/WIP/);assert.equal(r.headers.has('set-cookie'),false);assert.equal(calls,1);
   }finally{globalThis.fetch=original;}
 });
+
+test('column order accepts only the full-snapshot wire shape and unique contiguous positions', () => {
+  const order = [{ columnId: 12, position: 1 }, { columnId: 9, position: 0 }];
+  assert.equal(boardRoute('boards/7/columns/order', 'PUT', new URLSearchParams()).kind, 'column-order');
+  assert.equal(boardRoute('boards/7/columns/order', 'PATCH', new URLSearchParams()), null);
+  assert.throws(() => boardRoute('boards/7/columns/order', 'PUT', new URLSearchParams('projectId=3')));
+  assert.deepEqual(JSON.parse(boardBody('column-order', order)), order);
+  for (const invalid of [[], {}, [null], [{ columnId: '9', position: 0 }], [{ columnId: 9, position: -1 }],
+    [{ columnId: 9, position: 0, wipLimit: 10 }], [order[0], { ...order[1], position: 1 }],
+    [order[0], { ...order[1], columnId: 12 }], [order[0], { ...order[1], position: 2 }]]) {
+    assert.throws(() => boardBody('column-order', invalid));
+  }
+});
+
+test('BFF only forwards a valid column-order token and preserves empty 200 and 409', async (t) => {
+  const origin = 'http://127.0.0.1:3138';
+  const path = ['boards', '7', 'columns', 'order'];
+  const token = 'a'.repeat(64);
+  let status = 200;
+  const upstream = t.mock.method(globalThis, 'fetch', async (url, init) => {
+    assert.ok(url.endsWith('/boards/7/columns/order'));
+    assert.equal(init.headers.Authorization, 'Bearer test');
+    assert.equal(init.headers['X-Expected-Column-Order'], token);
+    assert.deepEqual(JSON.parse(init.body), [{ columnId: 12, position: 0 }]);
+    return new Response(null, { status });
+  });
+  const call = (headers) => backendRoute(new Request(origin + '/api/backend/' + path.join('/'), {
+    method: 'PUT', headers: { Origin: origin, Cookie: 'jira_access=test', ...headers },
+    body: '[{"columnId":12,"position":0}]',
+  }), path);
+  assert.equal((await call({})).status, 400);
+  assert.equal((await call({ 'X-Expected-Column-Order': token, Origin: 'https://elsewhere.invalid' })).status, 403);
+  assert.equal((await call({ 'X-Expected-Column-Order': token + ', ' + token })).status, 400);
+  const success = await call({ 'X-Expected-Column-Order': token });
+  assert.equal(success.status, 200);
+  assert.equal(await success.text(), '');
+  status = 409;
+  assert.equal((await call({ 'X-Expected-Column-Order': token })).status, 409);
+  assert.equal(upstream.mock.callCount(), 2);
+});

@@ -21,7 +21,7 @@ async function setup(){
   const api=async(route,method='GET',body)=>{const r=await fetch(backend+'/'+route,{method,headers:{Authorization:'Bearer '+pair.token,...(body?{'Content-Type':'application/json'}:{})},body:body?JSON.stringify(body):undefined});const t=await r.text();return {status:r.status,data:t?JSON.parse(t):null};};
   const statuses=ok(await api('issue-statuses'));const todo=statuses.find(s=>s.statusCategory==='TO_DO'),doing=statuses.find(s=>s.statusCategory==='IN_PROGRESS'),done=statuses.find(s=>s.statusCategory==='DONE');assert.ok(todo&&doing&&done);
   const qa=statuses.find(s=>s.statusName==='Đang kiểm thử')||ok(await api('issue-statuses','POST',{statusName:'Đang kiểm thử',statusCategory:'IN_PROGRESS'}));
-  for(const [from,to] of [[todo,qa],[doing,qa],[qa,done]]){const r=await api('workflows/rules','POST',{fromStatusId:from.statusId,toStatusId:to.statusId});assert.ok(r.status===201||r.status===409);}
+  for(const [from,to] of [[todo,doing],[todo,qa],[doing,qa],[qa,done],[done,todo]]){const r=await api('workflows/rules','POST',{fromStatusId:from.statusId,toStatusId:to.statusId});assert.ok(r.status===201||r.status===409);}
   // Dọn issue/board của các lượt board test dở, không chạm issue demo hoặc board người dùng.
   for(const i of ok(await api(`projects/${shop.id}/issues/search?keyword=E2EBOARD&size=100`)).items.filter(i=>/^E2EBOARD[A-Z0-9]+ /.test(i.summary)))ok(await api(`issues/${i.issueId}?expectedVersion=${i.version}`,'DELETE'));
   for(const b of ok(await api(`boards/project/${shop.id}`)).filter(b=>/^E2EBOARD[A-Z0-9]+ /.test(b.boardName)))ok(await api(`boards/${b.boardId}`,'DELETE'));
@@ -87,7 +87,8 @@ async function setup(){
     let authMoves=0;const countAuth=r=>{if(r.method()==='PUT'&&r.url().endsWith('/move'))authMoves++;};page.on('request',countAuth);
     await authMove.getByRole('button',{name:env.doing.statusName,exact:true}).click();await authStarted;
     await page.route(`**/api/backend/boards/${board.boardId}/issues`,route=>route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({message:'Lỗi board khi chờ auth'})}));
-    await refocus(page);await page.getByText(/Lỗi board khi chờ auth/).waitFor();releaseAuth();
+    // Đọc board đã lên lịch nhưng đang chờ khóa của mutation. Nhả auth để kiểm guard trước PUT rồi mới đợi GET503.
+    await refocus(page);releaseAuth();await page.getByText(/Lỗi board khi chờ auth/).waitFor();
     await eventually(async()=>assert.ok(await authMove.getByRole('button',{name:'Hủy',exact:true}).isEnabled()));assert.equal(authMoves,0);
     page.off('request',countAuth);await page.unroute('**/api/backend/auth/me');await page.unroute(`**/api/backend/boards/${board.boardId}/issues`);
     await authMove.getByRole('button',{name:'Hủy',exact:true}).click();await page.getByRole('button',{name:'Tải lại board',exact:true}).click();
@@ -100,7 +101,12 @@ async function setup(){
     await page.route(`**/api/backend/projects/${shop.id}`,route=>route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({message:'Lỗi gate thử nghiệm'})}));
     await refocus(page);await page.getByText('Lỗi gate thử nghiệm',{exact:true}).waitFor();
     const createModal=page.getByRole('dialog',{name:'Tạo Scrum board',exact:true});assert.ok(await createModal.getByRole('button',{name:'Tạo board',exact:true}).isDisabled());await createModal.getByRole('button',{name:'Hủy',exact:true}).click();
-    await page.unroute(`**/api/backend/projects/${shop.id}`);await page.getByRole('button',{name:'Thử lại',exact:true}).click();await eventually(async()=>assert.equal(await page.getByText('Lỗi gate thử nghiệm',{exact:true}).count(),0));
+    await page.unroute(`**/api/backend/projects/${shop.id}`);
+    // Một GET đã chờ khóa có thể khôi phục gate trước khi nút retry nhận click.
+    const gateError=page.getByText('Lỗi gate thử nghiệm',{exact:true});
+    try { await page.getByRole('button',{name:'Thử lại',exact:true}).click({timeout:1500}); }
+    catch(error){if(await gateError.count())throw error;}
+    await eventually(async()=>assert.equal(await gateError.count(),0));
     check('open create-board form respects gate read failure and keeps Cancel usable');
 
     const a=page.locator(`article[aria-label="Card ${created[0].issueKey}"]`);await a.focus();await a.press('Space');await a.press('ArrowDown');

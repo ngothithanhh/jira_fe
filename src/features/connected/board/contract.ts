@@ -1,4 +1,6 @@
-export type BoardAction = { kind:'read'|'create'|'rename'|'column'|'edit-column'|'map'|'unmap'|'delete'|'move'; write:boolean; suffix:string };
+export type BoardAction = { kind:'read'|'create'|'rename'|'column'|'edit-column'|'map'|'unmap'|'delete'|'move'|'column-order'; write:boolean; suffix:string };
+export const COLUMN_ORDER_HEADER = 'X-Expected-Column-Order';
+export const validColumnOrderToken = (token: unknown): token is string => typeof token === 'string' && /^[0-9a-f]{64}$/.test(token);
 const integer = (v:unknown, min=1):v is number => typeof v==='number' && Number.isInteger(v) && v>=min && v<=2147483647;
 const validId = (s:string) => /^[1-9]\d*$/.test(s) && integer(Number(s));
 
@@ -14,6 +16,7 @@ export function boardRoute(path:string,method:string,q:URLSearchParams):BoardAct
   if(method==='DELETE' && path==='boards/columns/map-status') kind='unmap';
   if(method==='DELETE' && /^boards\/(columns\/)?[1-9]\d*$/.test(path)) kind='delete';
   if(method==='PUT' && /^boards\/[1-9]\d*\/issues\/[1-9]\d*\/move$/.test(path)) kind='move';
+  if(method==='PUT' && /^boards\/[1-9]\d*\/columns\/order$/.test(path)) kind='column-order';
   if(!kind)return null;
   if(path.split('/').some((p)=>/^\d+$/.test(p)&&!validId(p))) throw new Error('ID board/cột không hợp lệ.');
   if(kind==='unmap') {
@@ -26,6 +29,7 @@ export function boardRoute(path:string,method:string,q:URLSearchParams):BoardAct
 /** Payload chỉ chứa ID nghiệp vụ và trường hợp đồng; Sprint guard luôn bật cho move từ màn connected. */
 export function boardBody(kind:BoardAction['kind'],input:unknown):string|undefined {
   if(['read','delete','unmap'].includes(kind))return undefined;
+  if(kind==='column-order')return JSON.stringify(columnOrderRows(input));
   if(!input || typeof input!=='object'||Array.isArray(input))throw new Error('Dữ liệu không hợp lệ.');
   const v=input as Record<string,unknown>;const out:Record<string,unknown>={};
   const num=(key:string,min=1)=>{if(!integer(v[key],min))throw new Error('ID/vị trí/WIP không hợp lệ.');out[key]=v[key];};
@@ -41,4 +45,23 @@ export function boardBody(kind:BoardAction['kind'],input:unknown):string|undefin
     out.expectedVersion=v.expectedVersion;
   }
   return JSON.stringify(out);
+}
+
+/** Đủ vị trí từ 0 đến n-1 trong payload; BE đối chiếu cả tập ID với DB. */
+function columnOrderRows(input: unknown) {
+  if (!Array.isArray(input) || !input.length) throw new Error('Danh sách cột không hợp lệ.');
+  const ids = new Set<number>();
+  const positions = new Set<number>();
+  return input.map((row: unknown) => {
+    if (!row || typeof row !== 'object' || Array.isArray(row) || Object.keys(row).length !== 2) {
+      throw new Error('Danh sách cột không hợp lệ.');
+    }
+    const { columnId, position } = row as Record<string, unknown>;
+    if (!integer(columnId) || !integer(position, 0) || position >= input.length || ids.has(columnId) || positions.has(position)) {
+      throw new Error('ID và vị trí cột phải duy nhất, vị trí liên tục từ 0.');
+    }
+    ids.add(columnId);
+    positions.add(position);
+    return { columnId, position };
+  });
 }
