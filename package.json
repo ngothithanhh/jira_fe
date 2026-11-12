@@ -8,7 +8,7 @@
     "start": "next start",
     "test:planning": "node --experimental-strip-types --test tests/planning-model.test.mjs",
     "test:ui-demo": "node --experimental-strip-types --test tests/ui-demo-model.test.mjs",
-    "test:connected": "node --experimental-strip-types --test tests/connected-server.test.mjs tests/connected-client.test.mjs tests/connected-projects.test.mjs tests/connected-issues.test.mjs tests/connected-board.test.mjs tests/connected-members.test.mjs",
+    "test:connected": "node --experimental-strip-types --test tests/connected-server.test.mjs tests/connected-client.test.mjs tests/connected-projects.test.mjs tests/connected-issues.test.mjs tests/connected-board.test.mjs tests/connected-members.test.mjs tests/connected-account.test.mjs",
     "test:connected:browser": "node tests/connected-browser.smoke.cjs",
     "test:projects:browser": "node tests/connected-projects.browser.cjs",
     "lint": "next lint && eslint .",
@@ -18,7 +18,8 @@
     "test:issues:browser": "node tests/connected-issues.browser.cjs",
     "test:board:browser": "node tests/connected-board.browser.cjs",
     "test:members:browser": "node tests/connected-members.browser.cjs",
-    "test:notifications-reports:browser": "node tests/connected-notifications-reports.browser.cjs"
+    "test:notifications-reports:browser": "node tests/connected-notifications-reports.browser.cjs",
+    "test:account:browser": "node tests/connected-account.browser.cjs"
   },
   "author": {
     "name": "Sanidhya Kumar Verma",

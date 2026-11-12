@@ -38,7 +38,8 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts",
     "next.config.mjs",
-    ".next-connected-build/types/**/*.ts"
+    ".next-connected-build/types/**/*.ts",
+    ".next-account-build/types/**/*.ts"
   ],
   "exclude": [
     "node_modules"

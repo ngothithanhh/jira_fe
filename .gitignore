@@ -16,6 +16,7 @@
 # next.js
 /.next/
 /.next-connected-build/
+/.next-account-build/
 /out/
 
 # production
