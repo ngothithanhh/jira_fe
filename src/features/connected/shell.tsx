@@ -8,6 +8,8 @@ import { toast } from 'sonner';
 import { Btn, FONT, InlineAlert } from '@/components/project-ui/kit';
 import { announceSession, connectedRequest, markLogoutPending, withSessionLock } from './client';
 import { useSession } from './session';
+import { ProjectNavigation } from './projects/screens';
+import { projectIdFromRoute } from './projects/model';
 
 /** Trang bảo vệ chỉ dựng children sau khi có context thật; lỗi mạng có nút thử lại, không chuyển thành trang rỗng. */
 export function ConnectedShell({ children }: { children: ReactNode }) {
@@ -15,6 +17,7 @@ export function ConnectedShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const path = usePathname();
   const [pending, setPending] = useState(false);
+  const selectedProjectId = projectIdFromRoute(path.match(/^\/app\/projects\/([^/]+)/)?.[1] || '');
   useEffect(() => {
     if (!session.switching && session.isSuccess && !session.data) router.replace(`/app/sign-in?returnTo=${encodeURIComponent(path)}`);
   }, [session.isSuccess, session.data, session.switching, router, path]);
@@ -39,8 +42,9 @@ export function ConnectedShell({ children }: { children: ReactNode }) {
       <div className="flex items-center gap-3"><Link href="/app/account" className="hidden text-sm hover:underline sm:inline">{user.fullName || user.userName}</Link><Btn variant="subtle" onClick={logout} disabled={pending}><LogOut />{pending ? 'Đang thoát…' : 'Đăng xuất'}</Btn></div>
     </header>
     <div className="flex min-h-[calc(100vh-56px)] flex-col sm:flex-row">
-      <nav aria-label="Điều hướng chính" className="flex shrink-0 gap-1 border-b border-[#dfe1e6] bg-[#fafbfc] p-3 sm:w-60 sm:flex-col sm:border-b-0 sm:border-r">
+      <nav aria-label="Điều hướng chính" className="flex shrink-0 flex-wrap gap-1 border-b border-[#dfe1e6] bg-[#fafbfc] p-3 sm:w-60 sm:flex-col sm:flex-nowrap sm:border-b-0 sm:border-r">
         {[{ href: '/app/projects', label: 'Dự án', Icon: FolderKanban }, { href: '/app/account', label: 'Tài khoản', Icon: UserRound }].map(({ href, label, Icon }) => <Link key={href} href={href} aria-current={path === href ? 'page' : undefined} className={`flex items-center gap-2 rounded-[3px] px-3 py-2 text-sm ${path === href ? 'bg-[#e9f2ff] font-medium text-[#0052cc]' : 'hover:bg-[#ebecf0]'}`}><Icon size={18} />{label}</Link>)}
+        {selectedProjectId !== null && <ProjectNavigation id={selectedProjectId} />}
       </nav>
       <main className="min-w-0 flex-1 p-5 sm:p-8">{children}</main>
     </div>

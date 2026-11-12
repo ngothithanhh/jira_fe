@@ -113,3 +113,44 @@ test('logout succeeds with 204 and always clears local cookies on upstream failu
     assert.match((await response.json()).message, /chưa xác nhận/);
   });
 });
+
+test('project writes enforce origin, Bearer and field allowlist independently from auth', async () => {
+  await withBackend(async (url, init) => {
+    assert.ok(url.endsWith('/projects/create'));
+    assert.equal(init.headers.Authorization, 'Bearer access');
+    assert.deepEqual(JSON.parse(init.body), { projectName: 'Shop', projectKey: 'SHOP', description: 'Store' });
+    return json({ projectId: 18, projectKey: 'SHOP' });
+  }, async () => {
+    const response = await backendRoute(request('projects/create', { method: 'POST', headers: { origin, cookie: 'jira_access=access' }, body: JSON.stringify({ projectName: ' Shop ', projectKey: 'SHOP', description: 'Store', leadId: 999, issueCount: 500 }) }), ['projects', 'create']);
+    assert.equal(response.status, 200); assert.equal((await response.json()).projectId, 18);
+    assert.equal(response.headers.has('set-cookie'), false);
+  });
+  await withBackend(() => assert.fail('blocked before upstream'), async () => {
+    assert.equal((await backendRoute(request('projects/18', { method: 'DELETE', headers: { origin: 'https://evil.test', cookie: 'jira_access=access' } }), ['projects', '18'])).status, 403);
+    assert.equal((await backendRoute(request('projects/18', { method: 'DELETE', headers: { origin } }), ['projects', '18'])).status, 401);
+    assert.equal((await backendRoute(request('projects/18?leadId=7', { headers: { cookie: 'jira_access=access' } }), ['projects', '18'])).status, 400);
+    assert.equal((await backendRoute(request('projects/2147483648'), ['projects', '2147483648'])).status, 400);
+  });
+});
+
+test('project patch cannot change key/lead; successful delete accepts 200 empty and 204', async () => {
+  await withBackend(async (_url, init) => {
+    assert.deepEqual(JSON.parse(init.body), { projectName: 'Renamed', description: null });
+    return json({ projectId: 18, projectKey: 'SHOP' });
+  }, async () => {
+    const response = await backendRoute(request('projects/18', { method: 'PATCH', headers: { origin, cookie: 'jira_access=access' }, body: JSON.stringify({ projectName: 'Renamed', projectKey: 'OTHER', leadId: 9 }) }), ['projects', '18']);
+    assert.equal(response.status, 200);
+  });
+  for (const status of [200, 204]) await withBackend(async () => new Response(null, { status }), async () => {
+    const response = await backendRoute(request('projects/18', { method: 'DELETE', headers: { origin, cookie: 'jira_access=access' } }), ['projects', '18']);
+    assert.equal(response.status, status); assert.equal(await response.text(), '');
+  });
+});
+
+test('project conflict stays actionable without deleting identity cookies', async () => {
+  await withBackend(async () => json({ internalSql: 'private' }, 409), async () => {
+    const response = await backendRoute(request('projects/18', { method: 'DELETE', headers: { origin, cookie: 'jira_access=access' } }), ['projects', '18']);
+    assert.equal(response.status, 409); assert.match((await response.json()).message, /liên kết/);
+    assert.equal(response.headers.has('set-cookie'), false);
+  });
+});

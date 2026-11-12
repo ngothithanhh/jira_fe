@@ -80,6 +80,52 @@ export async function connectedRequest<T>(path: string, init?: RequestInit, reco
   return readResponse<T>(response);
 }
 
+/**
+ * Ghi dữ liệu cho userId đã khởi tạo form, giữ cùng khóa với login/logout ở các tab.
+ * Kiểm /me và khôi phục phiên trước khi ghi; chỉ gửi mutation một lần, không replay 401 bằng tài khoản mới.
+ * userId khác nghĩa là form thuộc phiên cũ: dừng409 trước khi gửi bất kỳ mutation nghiệp vụ nào.
+ */
+export async function connectedMutation<T>(path: string, userId: number, init: RequestInit, isCurrent: () => boolean = () => true): Promise<T> {
+  // Không có khóa liên tab thì dừng ghi thay vì có nguy cơ dùng cookie tài khoản khác giữa probe và mutation.
+  if (!navigator.locks) throw new ConnectedError(409, 'Trình duyệt chưa hỗ trợ khóa phiên an toàn. Vui lòng dùng trình duyệt hỗ trợ Web Locks.');
+  return withSessionLock(async () => {
+    if (!isCurrent()) throw new ConnectedError(409, 'Phiên khởi tạo thao tác không còn hiệu lực.');
+    if (hasPendingLogout()) throw new ConnectedError(401, 'Phiên đã đóng trên thiết bị này.');
+    let probe = await send('auth/me');
+    if (probe.status === 401) {
+      // Đã giữ khóa liên tab nên không gọi refreshSessionOnce (hàm đó sẽ lấy khóa lần nữa).
+      if (!navigator.locks) throw new ConnectedError(401, 'Vui lòng đăng nhập lại để tiếp tục.');
+      try { await readResponse(await send('auth/refresh', { method: 'POST' })); }
+      catch (error) {
+        // BFF đã xóa cookie khi refresh401; bỏ cache/phiên cũ ngay trong khóa trước khi tab khác login.
+        if (error instanceof ConnectedError && error.status === 401) announceSession('ended');
+        throw error;
+      }
+      probe = await send('auth/me');
+    }
+    const identity = await readResponse<{ user: { id: number } }>(probe);
+    if (identity.user?.id !== userId) throw new ConnectedError(409, 'Tài khoản đã thay đổi. Vui lòng mở lại thao tác trong phiên hiện tại.');
+    if (!isCurrent()) throw new ConnectedError(409, 'Phiên khởi tạo thao tác không còn hiệu lực.');
+    return readResponse<T>(await send(path, init));
+  });
+}
+
+/**
+ * Sau khi refetch có thể đã có tab khác login nhưng BroadcastChannel chưa được xử lý ở tab cũ.
+ * Kiểm lại danh tính cookie dưới khóa rồi chạy completion đồng bộ trong khóa, không chỉ dựa vào cache/event.
+ * Không còn đúng actor/scope hoặc không đọc được phiên thì bỏ completion; không replay mutation đã thành công.
+ */
+export async function completeConnectedMutation(userId: number, isCurrent: () => boolean, complete: () => void) {
+  return withSessionLock(async () => {
+    if (!isCurrent() || hasPendingLogout()) return false;
+    let identity: { user: { id: number } };
+    try { identity = await readResponse(await send('auth/me')); } catch { return false; }
+    if (identity.user?.id !== userId || !isCurrent()) return false;
+    complete();
+    return true;
+  });
+}
+
 /** Giữ đường quay lại trong ứng dụng; không nhận URL ngoài origin, backslash hoặc route đăng nhập làm redirect. */
 export function safeReturnTo(value: string | null) {
   return value?.startsWith('/app/') && !value.includes('\\') && !value.startsWith('/app/sign-in') && !value.startsWith('/app/sign-up') ? value : '/app/projects';

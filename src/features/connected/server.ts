@@ -63,12 +63,18 @@ function trustedOrigin(request: Request) {
 export async function backendRoute(request: Request, path: string[]) {
   const route = path.join('/');
   const authAction = request.method === 'POST' && /^auth\/(login|register|refresh|logout)$/.test(route);
-  const readAction = request.method === 'GET' && ['auth/me', 'account/context', 'projects/getList'].includes(route);
-  if (!authAction && !readAction) return failure(404, 'Chức năng chưa được kết nối.');
-  if (authAction && !trustedOrigin(request)) return failure(403, 'Nguồn yêu cầu không hợp lệ.');
+  const projectItem = /^projects\/([1-9]\d*)$/.exec(route);
+  if (projectItem && Number(projectItem[1]) > 2147483647) return failure(400, 'ID dự án không hợp lệ.');
+  const readAction = request.method === 'GET' && (['auth/me', 'account/context', 'projects/getList'].includes(route) || !!projectItem);
+  const projectWrite = (request.method === 'POST' && route === 'projects/create') || (!!projectItem && ['PATCH', 'DELETE'].includes(request.method));
+  const protectedAction = readAction || projectWrite;
+  if (!authAction && !protectedAction) return failure(404, 'Chức năng chưa được kết nối.');
+  // Tất cả mutation dùng cookie đều kiểm Origin; public auth vẫn không nhận Bearer cũ.
+  if ((authAction || projectWrite) && !trustedOrigin(request)) return failure(403, 'Nguồn yêu cầu không hợp lệ.');
 
   // Chỉ chuyển query projectId hợp lệ; không chuyển actorId hoặc URL upstream từ người gọi.
   let suffix = '';
+  if (route !== 'account/context' && new URL(request.url).searchParams.size) return failure(400, 'Tham số không hợp lệ.');
   if (route === 'account/context') {
     const query = new URL(request.url).searchParams;
     if ([...query.keys()].some((key) => key !== 'projectId')) return failure(400, 'Tham số không hợp lệ.');
@@ -78,7 +84,7 @@ export async function backendRoute(request: Request, path: string[]) {
   }
   const access = readCookie(request, ACCESS);
   const refresh = readCookie(request, REFRESH);
-  if (readAction && !access) return failure(401, 'Bạn cần đăng nhập.');
+  if (protectedAction && !access) return failure(401, 'Bạn cần đăng nhập.');
   if (route === 'auth/refresh' && !refresh) return clearSession(failure(401, 'Phiên đăng nhập đã hết hạn.'));
   if (route === 'auth/logout' && !refresh) return clearSession(new NextResponse(null, { status: 204, headers: NO_STORE }));
 
@@ -99,6 +105,21 @@ export async function backendRoute(request: Request, path: string[]) {
     }
     body = JSON.stringify(payload);
   } else if (authAction) body = JSON.stringify({ refreshToken: refresh });
+  if (projectWrite && request.method !== 'DELETE') {
+    // Chỉ cho phép tên/mô tả và key khi tạo; lead/ID/quyền/counter từ browser bị loại bỏ.
+    const raw = await request.text();
+    if (raw.length > 8192) return failure(413, 'Thông tin dự án quá dài.');
+    let input: Record<string, unknown>;
+    try { input = JSON.parse(raw); } catch { return failure(400, 'Dữ liệu không hợp lệ.'); }
+    if (!input || typeof input.projectName !== 'string' || !input.projectName.trim() || input.projectName.length > 100
+      || (input.description !== undefined && input.description !== null && (typeof input.description !== 'string' || input.description.length > 255))) return failure(400, 'Thông tin dự án không hợp lệ.');
+    const payload: Record<string, unknown> = { projectName: input.projectName.trim(), description: input.description ?? null };
+    if (route === 'projects/create') {
+      if (typeof input.projectKey !== 'string' || !input.projectKey.trim() || input.projectKey.length > 10) return failure(400, 'Mã dự án cần từ 1 đến 10 ký tự.');
+      payload.projectKey = input.projectKey.trim();
+    }
+    body = JSON.stringify(payload);
+  }
 
   try {
     // Địa chỉ chỉ lấy từ cấu hình server, không dùng NEXT_PUBLIC_API_URL và không follow redirect mang Bearer ra nơi khác.
@@ -106,7 +127,7 @@ export async function backendRoute(request: Request, path: string[]) {
     const upstream = await fetch(`${base.replace(/\/$/, '')}/${route}${suffix}`, {
       method: request.method, body, cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(12000),
       // Auth public dùng form/refresh token riêng; Bearer cũ không được chặn login, refresh hoặc logout ở JWT filter.
-      headers: { ...(body ? { 'Content-Type': 'application/json' } : {}), ...(readAction && access ? { Authorization: `Bearer ${access}` } : {}) },
+      headers: { ...(body ? { 'Content-Type': 'application/json' } : {}), ...(protectedAction && access ? { Authorization: `Bearer ${access}` } : {}) },
     });
     if (route === 'auth/logout') {
       // Đóng phiên cục bộ kể cả mất kết nối/revoke lỗi; không thông báo đã thu hồi phía BE nếu BE không xác nhận.
@@ -118,10 +139,16 @@ export async function backendRoute(request: Request, path: string[]) {
       if (upstream.status === 404) message = 'Không tìm thấy dữ liệu.';
       if (upstream.status === 409) message = 'Dữ liệu đã thay đổi hoặc bị trùng. Vui lòng kiểm tra lại.';
       if (upstream.status === 409 && route === 'auth/register') message = 'Email đã được sử dụng. Vui lòng đăng nhập hoặc dùng email khác.';
+      if (upstream.status === 409 && route === 'projects/create') message = 'Mã dự án đã tồn tại. Vui lòng dùng mã khác.';
+      if (upstream.status === 409 && projectItem && request.method === 'DELETE') message = 'Dự án còn dữ liệu liên kết nên chưa thể xóa.';
       const response = failure(upstream.status, message);
       return route === 'auth/refresh' && upstream.status === 401 ? clearSession(response) : response;
     }
-    const data = await upstream.json();
+    // DELETE project có thể trả 200 rỗng, endpoint khác trả204; không cố parse JSON làm thành lỗi502.
+    if (upstream.status === 204) return new NextResponse(null, { status: 204, headers: NO_STORE });
+    const text = await upstream.text();
+    if (!text && !authAction) return new NextResponse(null, { status: upstream.status, headers: NO_STORE });
+    const data = JSON.parse(text);
     return authAction ? establishSession(data) : NextResponse.json(data, { headers: NO_STORE });
   } catch {
     const response = failure(502, route === 'auth/logout'

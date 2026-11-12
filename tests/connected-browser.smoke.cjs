@@ -35,8 +35,8 @@ const check = (name) => { passed.push(name); console.log('PASS: ' + name); };
     await page.getByLabel(/^Mật khẩu/).fill(credentials.password);
     await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click();
     await page.waitForURL('**/app/projects');
-    await page.getByRole('cell', { name: 'Website thương mại điện tử', exact: true }).waitFor();
-    assert.equal(await page.getByRole('cell', { name: 'Cổng thông tin nội bộ', exact: true }).count(), 1);
+    await page.getByRole('link', { name: 'Website thương mại điện tử', exact: false }).waitFor();
+    assert.equal(await page.getByRole('link', { name: 'Cổng thông tin nội bộ', exact: false }).count(), 1);
     const cookies = await context.cookies();
     assert.equal(cookies.filter((c) => ['jira_access', 'jira_refresh'].includes(c.name)).length, 2);
     assert.ok(cookies.filter((c) => c.name.startsWith('jira_')).every((c) => c.httpOnly));
@@ -54,7 +54,7 @@ const check = (name) => { passed.push(name); console.log('PASS: ' + name); };
 
     const second = await context.newPage();
     await second.goto(base + '/app/projects');
-    await second.getByRole('cell', { name: 'Website thương mại điện tử', exact: true }).waitFor();
+    await second.getByRole('link', { name: 'Website thương mại điện tử', exact: false }).waitFor();
     // Giữ response context chậm để quan sát việc hồ sơ A bị ẩn trước khi B được tải xong.
     await page.route('**/api/backend/account/context', async (route) => {
       await new Promise((resolve) => setTimeout(resolve, 700)); await route.continue();
@@ -79,7 +79,7 @@ const check = (name) => { passed.push(name); console.log('PASS: ' + name); };
     await context.clearCookies({ name: 'jira_access' });
     await Promise.all([page.reload(), second.reload()]);
     await page.getByRole('heading', { name: pm.fullName, exact: true }).waitFor();
-    await second.getByRole('cell', { name: 'Website thương mại điện tử', exact: true }).waitFor();
+    await second.getByRole('link', { name: 'Website thương mại điện tử', exact: false }).waitFor();
     assert.equal(refreshes, 1, 'both tabs must share one refresh rotation');
     check('missing access cookie recovers both tabs with exactly one refresh');
 
@@ -98,13 +98,13 @@ const check = (name) => { passed.push(name); console.log('PASS: ' + name); };
     await page.getByLabel(/^Mật khẩu/).fill(credentials.password);
     await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click();
     await page.waitForURL('**/app/projects');
-    await page.getByRole('cell', { name: 'Website thương mại điện tử', exact: true }).waitFor();
-    assert.equal(await page.getByRole('cell', { name: 'Cổng thông tin nội bộ', exact: true }).count(), 0);
+    await page.getByRole('link', { name: 'Website thương mại điện tử', exact: false }).waitFor();
+    assert.equal(await page.getByRole('link', { name: 'Cổng thông tin nội bộ', exact: false }).count(), 0);
     const portal = credentials.projects.find((p) => p.key === 'PORTAL');
     const denied = await page.evaluate(async (id) => (await fetch(`/api/backend/account/context?projectId=${id}`)).status, portal.id);
     assert.equal(denied, 403);
     await page.reload();
-    await page.getByRole('cell', { name: 'Website thương mại điện tử', exact: true }).waitFor();
+    await page.getByRole('link', { name: 'Website thương mại điện tử', exact: false }).waitFor();
     check('switching user clears old cache; developer cannot read PM-only project');
 
     await page.setViewportSize({ width: 390, height: 844 });

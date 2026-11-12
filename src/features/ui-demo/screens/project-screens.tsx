@@ -2,8 +2,8 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useMemo, useState } from 'react';
-import { CheckCircle2, Circle, LayoutGrid, List, MoreHorizontal, Plus } from 'lucide-react';
+import { useState } from 'react';
+import { CheckCircle2, Circle, MoreHorizontal } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   DropdownMenu,
@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Avatar, Btn, Card, ConfirmDialog, EmptyState, FONT, Field, InlineAlert, LinkBtn, Modal, PageHeading, SearchInput, TextArea, TextInput, formatDate, tableClass, tdClass, thClass } from '@/components/project-ui/kit';
 import { cn } from '@/lib/utils';
+import { ProjectFields, ProjectsListView, suggestProjectKey } from '@/components/project-ui/project-views';
 import { IssueStatus, IssueTypeIcon, Screen, routes, useCan, useProject } from '../common';
 import {
   can,
@@ -32,18 +33,6 @@ import {
 } from '../logic';
 import { useDemo } from '../provider';
 import type { DemoProject } from '../types';
-
-const suggestKey = (name: string) =>
-  name
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/đ/gi, 'D')
-    .split(/[^a-zA-Z0-9]+/)
-    .filter(Boolean)
-    .map((w) => w[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 10);
 
 /** Tạo dự án: key gợi ý từ tên cho tới khi người dùng tự sửa; lỗi giữ nguyên bản nháp. */
 export function CreateProjectDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
@@ -97,34 +86,10 @@ export function CreateProjectDialog({ open, onOpenChange }: { open: boolean; onO
         }}
       >
         {error && <InlineAlert tone="error">{error}</InlineAlert>}
-        <Field label="Tên dự án" required error={errors.name}>
-          {(p) => (
-            <TextInput
-              {...p}
-              autoFocus
-              maxLength={100}
-              value={form.name}
-              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value, key: keyTouched ? f.key : suggestKey(e.target.value) }))}
-            />
-          )}
-        </Field>
-        <Field label="Mã dự án" required error={errors.key} hint="2–10 ký tự, dùng làm tiền tố mã công việc (vd. SCR-12). Không đổi được sau khi tạo.">
-          {(p) => (
-            <TextInput
-              {...p}
-              maxLength={10}
-              value={form.key}
-              onChange={(e) => {
-                setKeyTouched(true);
-                setForm((f) => ({ ...f, key: e.target.value.toUpperCase() }));
-              }}
-              className="w-40 uppercase"
-            />
-          )}
-        </Field>
-        <Field label="Mô tả" error={errors.description}>
-          {(p) => <TextArea {...p} rows={3} value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} />}
-        </Field>
+        <ProjectFields draft={form} errors={errors} descriptionLimit={1000} onChange={(field, value) => {
+          if (field === 'key') setKeyTouched(true);
+          setForm((f) => ({ ...f, [field]: value, ...(field === 'name' && !keyTouched ? { key: suggestProjectKey(value) } : {}) }));
+        }} />
         <fieldset>
           <legend className="mb-2 text-xs font-semibold text-[#6b778c]">Khởi tạo</legend>
           {(
@@ -176,138 +141,27 @@ export function DeleteProjectDialog({ project, open, onOpenChange, onDeleted }: 
 export function ProjectsScreen() {
   const { state, me } = useDemo();
   const router = useRouter();
-  const [query, setQuery] = useState('');
-  const [view, setView] = useState<'table' | 'card'>('table');
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<DemoProject | null>(null);
   const canCreate = useCan('CREATE_PROJECT');
   const all = visibleProjects(state, me?.id);
-  const projects = useMemo(() => {
-    const q = query.trim().toLocaleLowerCase('vi');
-    return all.filter((p) => !q || `${p.name} ${p.key}`.toLocaleLowerCase('vi').includes(q)).sort((a, b) => a.name.localeCompare(b.name, 'vi'));
-  }, [all, query]);
-  const createButton = canCreate ? (
-    <Btn variant="primary" onClick={() => setCreating(true)}>
-      <Plus /> Tạo dự án
-    </Btn>
-  ) : null;
-  const menu = (p: DemoProject) => (
-    <DropdownMenu modal={false}>
-      <DropdownMenuTrigger asChild>
-        <Btn size="icon" variant="subtle" aria-label={`Thao tác dự án ${p.key}`}>
-          <MoreHorizontal />
-        </Btn>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" style={FONT}>
-        <DropdownMenuItem onSelect={() => router.push(routes.project(p.id))}>Mở dự án</DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => router.push(routes.project(p.id, 'backlog'))}>Backlog</DropdownMenuItem>
-        {can(state, me?.id, 'EDIT_PROJECT', p.id) && <DropdownMenuItem onSelect={() => router.push(routes.project(p.id, 'settings'))}>Cài đặt</DropdownMenuItem>}
-        {can(state, me?.id, 'DELETE_PROJECT', p.id) && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-[#de350b]" onSelect={() => setDeleting(p)}>
-              Xóa dự án…
-            </DropdownMenuItem>
-          </>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-  return (
-    <Screen empty={<EmptyState title="Chưa có dự án" description="Tạo dự án đầu tiên để bắt đầu lập kế hoạch." action={createButton} />}>
-      <PageHeading title="Dự án" actions={createButton} />
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <SearchInput value={query} onChange={setQuery} placeholder="Tìm theo tên hoặc mã" label="Tìm dự án" />
-        <div className="ml-auto flex rounded-[3px] bg-[#091e420f] p-0.5" role="group" aria-label="Kiểu hiển thị">
-          <Btn size="icon" variant={view === 'table' ? 'primary' : 'subtle'} aria-pressed={view === 'table'} aria-label="Dạng bảng" onClick={() => setView('table')}>
-            <List />
-          </Btn>
-          <Btn size="icon" variant={view === 'card' ? 'primary' : 'subtle'} aria-pressed={view === 'card'} aria-label="Dạng thẻ" onClick={() => setView('card')}>
-            <LayoutGrid />
-          </Btn>
-        </div>
-      </div>
-      {!all.length ? (
-        <EmptyState title="Bạn chưa thuộc dự án nào" description={canCreate ? 'Tạo dự án mới hoặc nhờ trưởng dự án thêm bạn.' : 'Nhờ trưởng dự án thêm bạn vào dự án.'} action={createButton} />
-      ) : !projects.length ? (
-        <EmptyState title="Không có dự án khớp" description={`Không tìm thấy dự án với "${query}".`} action={<Btn onClick={() => setQuery('')}>Xóa tìm kiếm</Btn>} />
-      ) : view === 'table' ? (
-        <div className="relative overflow-x-auto">
-          <table className={tableClass}>
-            <thead>
-              <tr>
-                <th className={thClass}>Tên</th>
-                <th className={thClass}>Mã</th>
-                <th className={thClass}>Trưởng dự án</th>
-                <th className={cn(thClass, 'text-right')}>Thành viên</th>
-                <th className={cn(thClass, 'text-right')}>Công việc</th>
-                <th className={thClass}>Sprint đang chạy</th>
-                <th className={thClass}>
-                  <span className="sr-only">Thao tác</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {projects.map((p) => {
-                const active = projectSprints(state, p.id).find((s) => s.state === 'ACTIVE');
-                return (
-                  <tr key={p.id} className="hover:bg-[#f4f5f7]">
-                    <td className={tdClass}>
-                      <Link href={routes.project(p.id)} className="flex items-center gap-2 font-medium text-[#0052cc] hover:underline">
-                        <span className="grid size-6 shrink-0 place-items-center rounded-[3px] bg-[#0052cc] text-[10px] font-bold text-white">{p.key.slice(0, 2)}</span>
-                        {p.name}
-                      </Link>
-                    </td>
-                    <td className={tdClass}>{p.key}</td>
-                    <td className={tdClass}>
-                      <span className="flex items-center gap-2">
-                        <Avatar name={findUser(state, p.leadId)?.fullName ?? null} size={22} />
-                        {userLabel(state, p.leadId)}
-                      </span>
-                    </td>
-                    <td className={cn(tdClass, 'text-right')}>{projectMembers(state, p.id).length}</td>
-                    <td className={cn(tdClass, 'text-right')}>{projectIssues(state, p.id).length}</td>
-                    <td className={tdClass}>{active ? active.name : <span className="text-[#6b778c]">—</span>}</td>
-                    <td className={cn(tdClass, 'w-10')}>{menu(p)}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      ) : (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {projects.map((p) => (
-            <div key={p.id} className="rounded-[3px] border border-[#dfe1e6] p-4 hover:shadow-[0_1px_2px_rgba(9,30,66,0.25)]">
-              <div className="flex items-start gap-3">
-                <span className="grid size-9 shrink-0 place-items-center rounded-[3px] bg-[#0052cc] text-xs font-bold text-white">{p.key.slice(0, 2)}</span>
-                <div className="min-w-0 flex-1">
-                  <Link href={routes.project(p.id)} className="block truncate font-medium text-[#172b4d] hover:text-[#0052cc] hover:underline">
-                    {p.name}
-                  </Link>
-                  <p className="text-xs text-[#6b778c]">
-                    {p.key} · {projectMembers(state, p.id).length} thành viên · {projectIssues(state, p.id).length} công việc
-                  </p>
-                </div>
-                {menu(p)}
-              </div>
-              <p className="mt-3 line-clamp-2 min-h-10 text-[13px] text-[#42526e]">{p.description || 'Chưa có mô tả.'}</p>
-              <div className="mt-3 flex gap-3 text-[13px]">
-                <Link className="text-[#0052cc] hover:underline" href={routes.project(p.id, 'backlog')}>
-                  Backlog
-                </Link>
-                <Link className="text-[#0052cc] hover:underline" href={routes.project(p.id, 'board')}>
-                  Bảng
-                </Link>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-      <CreateProjectDialog open={creating} onOpenChange={setCreating} />
-      {deleting && <DeleteProjectDialog project={deleting} open onOpenChange={(v) => !v && setDeleting(null)} />}
-    </Screen>
-  );
+  // Adapter fixture chỉ cấp props cho view dùng chung; không thay đổi action nghiệp vụ demo.
+  const rows = all.map((p) => ({ id: p.id, name: p.name, key: p.key, description: p.description,
+    leaderName: userLabel(state, p.leadId), memberCount: projectMembers(state, p.id).length,
+    issueCount: projectIssues(state, p.id).length, activeSprintName: projectSprints(state, p.id).find((s) => s.state === 'ACTIVE')?.name ?? null }));
+  return <Screen empty={<EmptyState title="Chưa có dự án" description="Tạo dự án đầu tiên để bắt đầu lập kế hoạch." />}>
+    <ProjectsListView projects={rows} onCreate={canCreate ? () => setCreating(true) : undefined} projectHref={(id) => routes.project(id)}
+      extraLinks={(p) => <><Link className="text-[#0052cc] hover:underline" href={routes.project(p.id, 'backlog')}>Backlog</Link><Link className="text-[#0052cc] hover:underline" href={routes.project(p.id, 'board')}>Bảng</Link></>}
+      renderMenu={(p) => <DropdownMenu modal={false}><DropdownMenuTrigger asChild><Btn size="icon" variant="subtle" aria-label={'Thao tác dự án ' + p.key}><MoreHorizontal /></Btn></DropdownMenuTrigger>
+        <DropdownMenuContent align="end" style={FONT}>
+          <DropdownMenuItem onSelect={() => router.push(routes.project(p.id))}>Mở dự án</DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => router.push(routes.project(p.id, 'backlog'))}>Backlog</DropdownMenuItem>
+          {can(state, me?.id, 'EDIT_PROJECT', p.id) && <DropdownMenuItem onSelect={() => router.push(routes.project(p.id, 'settings'))}>Cài đặt</DropdownMenuItem>}
+          {can(state, me?.id, 'DELETE_PROJECT', p.id) && <><DropdownMenuSeparator /><DropdownMenuItem className="text-[#de350b]" onSelect={() => setDeleting(all.find((item) => item.id === p.id) ?? null)}>Xóa dự án…</DropdownMenuItem></>}
+        </DropdownMenuContent></DropdownMenu>} />
+    <CreateProjectDialog open={creating} onOpenChange={setCreating} />
+    {deleting && <DeleteProjectDialog project={deleting} open onOpenChange={(v) => !v && setDeleting(null)} />}
+  </Screen>;
 }
 
 /** Tổng quan dự án: mọi số liệu tính từ state đúng projectId của route. */
