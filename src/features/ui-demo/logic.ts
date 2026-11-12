@@ -1150,7 +1150,7 @@ export function deleteStatus(state: DemoState, ctx: ActionContext, statusId: num
     d.statuses = d.statuses.filter((st) => st.id !== statusId);
     d.columnStatuses = d.columnStatuses.filter((m) => m.statusId !== statusId);
     d.workflowRules = d.workflowRules.filter((r) => r.fromStatusId !== statusId && r.toStatusId !== statusId);
-    audit(d, ctx, 'STATUS_DELETED', 'STATUS', statusId, null, `Xóa trạng thái ${status.name} (gỡ mapping và cạnh workflow liên quan)`);
+    audit(d, ctx, 'STATUS_DELETED', 'STATUS', statusId, null, `Xóa trạng thái ${status.name} (gỡ ánh xạ và cạnh workflow liên quan)`);
   });
 }
 export function addWorkflowRule(state: DemoState, ctx: ActionContext, fromStatusId: number, toStatusId: number): ActionResult {
@@ -1325,7 +1325,7 @@ export function deleteColumn(state: DemoState, ctx: ActionContext, columnId: num
   const board = boardGuard(state, ctx, column.boardId);
   if (isError(board)) return board;
   const load = columnLoad(state, columnId);
-  if (load) return fail('CONFLICT', `Cột còn ${load} công việc theo mapping. Chuyển việc hoặc gỡ mapping trước.`);
+  if (load) return fail('CONFLICT', `Cột còn ${load} công việc theo ánh xạ. Chuyển việc hoặc gỡ ánh xạ trạng thái trước.`);
   return tx(state, ctx, (d) => {
     d.columns = d.columns.filter((c) => c.id !== columnId);
     d.columnStatuses = d.columnStatuses.filter((m) => m.columnId !== columnId);
@@ -1364,7 +1364,7 @@ export function unmapStatus(state: DemoState, ctx: ActionContext, columnId: numb
   if (!column) return fail('NOT_FOUND', 'Không tìm thấy cột.');
   const board = boardGuard(state, ctx, column.boardId);
   if (isError(board)) return board;
-  if (!state.columnStatuses.some((m) => m.columnId === columnId && m.statusId === statusId)) return fail('NOT_FOUND', 'Trạng thái chưa map vào cột này.');
+  if (!state.columnStatuses.some((m) => m.columnId === columnId && m.statusId === statusId)) return fail('NOT_FOUND', 'Trạng thái chưa được ánh xạ vào cột này.');
   return tx(state, ctx, (d) => {
     d.columnStatuses = d.columnStatuses.filter((m) => !(m.columnId === columnId && m.statusId === statusId));
     audit(d, ctx, 'STATUS_UNMAPPED', 'COLUMN', columnId, board.projectId, `Gỡ ${findStatus(d, statusId)?.name} khỏi cột ${column.name}`);
@@ -1612,7 +1612,7 @@ export function moveCard(state: DemoState, ctx: ActionContext, input: MoveCardIn
   if (column.boardId !== board.id || issue.projectId !== board.projectId) return fail('VALIDATION', 'Cột hoặc công việc không thuộc bảng này.');
   const denied = requirePerm(state, ctx, 'EDIT_ISSUE', board.projectId);
   if (denied) return denied;
-  if (!columnStatusIds(state, column.id).includes(input.statusId)) return fail('VALIDATION', 'Trạng thái chưa được map vào cột đích.');
+  if (!columnStatusIds(state, column.id).includes(input.statusId)) return fail('VALIDATION', 'Trạng thái chưa được ánh xạ vào cột đích.');
   if (!sprintIssueList(state, input.sprintId).some((i) => i.id === issue.id)) return fail('VALIDATION', 'Công việc không thuộc sprint đang xem.');
   if (issue.version !== input.expectedVersion) return fail('CONFLICT', 'Dữ liệu mẫu đã thay đổi. Bảng đã được tải lại, hãy kéo lại.');
   if (!canTransition(state, issue.statusId, input.statusId))
