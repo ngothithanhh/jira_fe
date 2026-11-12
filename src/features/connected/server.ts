@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server.js';
 import { accountBody } from './account/contract.ts';
 import { issueBody, issueRoute, type IssueRoute } from './issues/contract.ts';
-import { boardBody, boardRoute, type BoardAction } from './board/contract.ts';
+import { boardBody, boardRoute, COLUMN_ORDER_HEADER, validColumnOrderToken, type BoardAction } from './board/contract.ts';
 import { memberBody, memberRoute } from './members/contract.ts';
 import { collaborationRoute, commentBody, readAttachment, readAttachmentContent, UploadInputError, type CollaborationRoute } from './collaboration/contract.ts';
 import { configurationRoute,configurationBody,type ConfigurationAction } from './configuration/contract.ts';
@@ -105,7 +105,7 @@ export async function backendRoute(request: Request, path: string[]) {
     || validRouteId(/^sprints\/(\d+)\/reports\/(summary|burndown)$/.exec(route)?.[1])
   );
   const readAction = notificationRead || reportRead
-    || (request.method === 'GET' && (['auth/me', 'account/context', 'projects/getList'].includes(route) || !!projectItem));
+    || (request.method === 'GET' && (['auth/me', 'account/context', 'projects/getList', 'admin/overview'].includes(route) || !!projectItem));
   const accountWrite = request.method === 'PATCH' && route === 'account/profile' ? 'profile'
     : request.method === 'POST' && route === 'account/password' ? 'password' : null;
   // Thêm tài khoản vào các API đã nối; giữ nguyên quyền truy cập project, board, thành viên, thông báo và báo cáo.
@@ -192,7 +192,8 @@ export async function backendRoute(request: Request, path: string[]) {
     body = JSON.stringify(payload);
   }
   // Giới hạn payload lập kế hoạch; các thao tác link/status/assign không cần body.
-  if (issue?.write && ['create','edit','order','sprint'].includes(issue.kind)) {
+  if (issue?.kind === 'sprint-delete' && await request.text() !== '') return failure(400, 'Yêu cầu xóa sprint không nhận body.');
+  if (issue?.write && ['create','edit','order','sprint','sprint-edit'].includes(issue.kind)) {
     const raw = await request.text();
     if (raw.length > 1048576) return failure(413, 'Dữ liệu quá dài.');
     try { body = issueBody(issue.kind, JSON.parse(raw)); }
@@ -205,6 +206,10 @@ export async function backendRoute(request: Request, path: string[]) {
     catch (error) { return failure(400, error instanceof SyntaxError ? 'Dữ liệu không hợp lệ.' : (error as Error).message); }
   }
 
+  const expectedColumnOrder = board?.kind === 'column-order' ? request.headers.get(COLUMN_ORDER_HEADER) : null;
+  if (board?.kind === 'column-order' && !validColumnOrderToken(expectedColumnOrder)) {
+    return failure(400, 'Thiếu token thứ tự cột hợp lệ. Hãy tải lại board.');
+  }
   // Route board dùng contract riêng; mọi thao tác vẫn dùng chung cookie, Origin và khóa phiên của connected.
   if (board?.write && !['delete','unmap'].includes(board.kind)) {
     const raw=await request.text();
@@ -232,7 +237,8 @@ export async function backendRoute(request: Request, path: string[]) {
     const upstream = await fetch(`${base.replace(/\/$/, '')}/${route}${suffix}`, {
       method: request.method, body, cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(collaboration?.kind==='upload'||collaboration?.kind==='delete-file'?60000:12000),
       // Auth public dùng form/refresh token riêng; Bearer cũ không được chặn login, refresh hoặc logout ở JWT filter.
-      headers: { ...(typeof body==='string' ? { 'Content-Type': 'application/json' } : {}), ...(protectedAction && access ? { Authorization: `Bearer ${access}` } : {}) },
+      headers: { ...(typeof body==='string' ? { 'Content-Type': 'application/json' } : {}), ...(protectedAction && access ? { Authorization: `Bearer ${access}` } : {}),
+        ...(expectedColumnOrder ? { [COLUMN_ORDER_HEADER]: expectedColumnOrder } : {}) },
     });
     if (route === 'auth/logout') {
       // Đóng phiên cục bộ kể cả mất kết nối/revoke lỗi; không thông báo đã thu hồi phía BE nếu BE không xác nhận.
@@ -259,7 +265,10 @@ export async function backendRoute(request: Request, path: string[]) {
       if (upstream.status === 409 && projectItem && request.method === 'DELETE') message = 'Dự án còn dữ liệu liên kết nên chưa thể xóa.';
       if (upstream.status === 409 && issue) message = 'Dữ liệu đã thay đổi hoặc còn liên kết. Tải lại để kiểm tra trước khi thực hiện lại.';
       if (upstream.status === 400 && issue) message = 'Thao tác không hợp lệ với dữ liệu hiện tại. Kiểm tra loại công việc, workflow, người nhận và sprint.';
+      if (upstream.status === 400 && issue?.kind === 'sprint-edit') message = 'Kiểm tra tên, mục tiêu và thứ tự ngày của sprint.';
+      if (upstream.status === 409 && (issue?.kind === 'sprint-edit' || issue?.kind === 'sprint-delete')) message = 'Trạng thái sprint đã thay đổi hoặc sprint còn liên kết. Kiểm tra dữ liệu vừa tải lại.';
       if (upstream.status === 409 && board) message = 'Card/cấu hình đã thay đổi, cột đạt WIP hoặc sprint không còn cho phép thao tác. Tải lại trước khi thử tiếp.';
+      if (upstream.status === 409 && board?.kind === 'column-order') message = 'Thứ tự hoặc tập cột đã thay đổi. Tải thứ tự mới để kiểm tra trước khi lưu.';
       if (upstream.status === 400 && board) message = 'Cột, trạng thái hoặc vị trí không hợp lệ với board hiện tại.';
       if(configuration&&upstream.status===409){
         message=configuration.kind==='rule'?'Cạnh workflow đã tồn tại.':configuration.kind==='type'?'Tên loại công việc đã tồn tại.':configuration.kind==='status'?'Tên trạng thái đã có hoặc nhóm khác nhóm cố định ban đầu.'

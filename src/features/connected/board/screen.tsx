@@ -12,7 +12,7 @@ import {useProjectMutationScope} from '../projects/queries';
 import {useIssueContext,useIssueReferences,useIssueWrite} from '../issues/queries';
 import {IssuePanel} from '../issues/panel';
 import type {StatusDto} from '../issues/model';
-import {useConnectedBoardData,useConnectedBoards} from './queries';
+import {boardDataKey,useConnectedBoardData,useConnectedBoards} from './queries';
 import {allowedBoardTargets,buildBoardView,emptyFilter,toGlobalBoardPosition,type BoardDto,type CardDto,type BoardData} from './model';
 import {BoardConfiguration,CreateBoard} from './configuration';
 
@@ -41,15 +41,15 @@ function ProjectBoard({projectId}:{projectId:number}){
       :board?<SelectedBoard key={`${board.boardId}:${sprintId}`} projectId={projectId} boardId={board.boardId} sprintId={sprintId} catalogFailed={!!catalog.error}/>
       :<EmptyState title="Dự án chưa có Scrum board" description="Tạo board rồi ánh xạ trạng thái vào các cột để theo dõi sprint."/>}
     {creating&&<CreateBoard projectId={projectId} blocked={!!catalog.error} onClose={()=>setCreating(false)} onCreated={(b)=>{setCreating(false);change('boardId',String(b.boardId));setConfig(b);}}/>}
-    {config&&<ConfigurationLoader key={config.boardId} projectId={projectId} snapshot={config} onClose={()=>setConfig(null)} onDeleted={()=>{setConfig(null);change('boardId',null);}}/>}
+    {config&&<ConfigurationLoader key={config.boardId} projectId={projectId} snapshot={config} selected={config.boardId===boardId} onClose={()=>setConfig(null)} onDeleted={()=>{setConfig(null);change('boardId',null);}}/>}
   </>;
 }
 
 /** Modal nằm ngoài selected board để đổi catalog sau xóa không cắt mất callback completion. */
-function ConfigurationLoader({projectId,snapshot,onClose,onDeleted}:{projectId:number;snapshot:BoardDto;onClose:()=>void;onDeleted:()=>void}){
+function ConfigurationLoader({projectId,snapshot,selected,onClose,onDeleted}:{projectId:number;snapshot:BoardDto;selected:boolean;onClose:()=>void;onDeleted:()=>void}){
   const data=useConnectedBoardData(projectId,snapshot.boardId,null);
   const {permitted}=useIssueContext(projectId);
-  return <BoardConfiguration projectId={projectId} board={data.data?.board||snapshot} cards={data.data?.cards||[]} readFailed={!!data.error||!data.data||!permitted('MANAGE_BOARD')} onClose={onClose} onDeleted={onDeleted}/>;
+  return <BoardConfiguration projectId={projectId} board={data.data?.board||snapshot} cards={data.data?.cards||[]} readFailed={!!data.error||!data.data||data.isFetching||!permitted('MANAGE_BOARD')} selected={selected} onClose={onClose} onDeleted={onDeleted}/>;
 }
 
 type Pending={card:CardDto;columnId?:number;index?:number;allowed:StatusDto[]};
@@ -74,7 +74,11 @@ function SelectedBoard({projectId,boardId,sprintId,catalogFailed}:{projectId:num
     if(!column?.mappedStatusIds.includes(statusId)){setLocalError('Mapping đã thay đổi. Tải lại board trước khi chuyển.');return;}
     try{
       const position=toGlobalBoardPosition(state.data,card.issue.issueId,columnId,index);
-      await write.run(`boards/${boardId}/issues/${card.issue.issueId}/move`,{method:'PUT',body:JSON.stringify({columnId,statusId,position,expectedVersion:card.version,sprintId})},`Đã chuyển ${card.issue.issueKey}`,()=>setPending(null),()=>latest.current.editable);
+      await write.run(`boards/${boardId}/issues/${card.issue.issueId}/move`,{method:'PUT',body:JSON.stringify({columnId,statusId,position,expectedVersion:card.version,sprintId})},`Đã chuyển ${card.issue.issueKey}`,()=>setPending(null),()=>{
+        // Lượt đọc mới có thể đang chờ khóa phiên của chính mutation; không dùng snapshot cũ để gửi card.
+        const cached = client.getQueryState<BoardData>(boardDataKey(context.actor,projectId,boardId,sprintId));
+        return latest.current.editable && cached?.status==='success' && cached.fetchStatus==='idle' && cached.data===state.data;
+      });
     }catch(error){
       // Lỗi tính vị trí xảy ra trước request cũng cần được hiện; không nuốt lỗi khi scope card đích vừa thay đổi.
       if(context.actor){const current=capture();await completeConnectedMutation(context.actor,current,()=>setLocalError(error instanceof Error?error.message:'Không thể chuyển card.'));}

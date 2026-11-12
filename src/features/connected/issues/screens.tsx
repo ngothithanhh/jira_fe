@@ -13,6 +13,8 @@ import { priorities } from './contract';
 import { initialFilters, type Filters, type IssueDto } from './model';
 import { useIssueContext, useIssueReferences, useIssueSearch, useIssueWrite, usePlanning } from './queries';
 import { CreateIssue, IssuePanel } from './panel';
+import { SprintDialog, type SprintDialogSelection } from './sprint-dialog';
+import { useSprintWrite } from './sprint-write';
 
 /** Route ID lấy từ projects.project_id; key remount form khi đổi project để không giữ draft/mutation của dự án trước. */
 export function ConnectedIssueScreen({ backlog = false }: { backlog?: boolean }) {
@@ -61,10 +63,12 @@ function IssuesScreen({projectId}:{projectId:number}) {
 
 /** Adapter BacklogView giữ giao diện hiện có; tất cả hành động nhận ID thật, không cập nhật fixture hay giả thành công. */
 function PlanningScreen({projectId}:{projectId:number}) {
-  const {permitted,actor} = useIssueContext(projectId);
+  const {permitted,actor,project} = useIssueContext(projectId);
   const refs = useIssueReferences(projectId);
   const planning = usePlanning(projectId);
   const write = useIssueWrite(projectId);
+  const sprintWrite = useSprintWrite(actor, projectId);
+  const [sprintDialog, setSprintDialog] = useState<SprintDialogSelection | null>(null);
   const [selected,setSelected] = useState<number | null>(null);
   const [localError,setLocalError] = useState('');
   const capture = useProjectMutationScope();
@@ -100,12 +104,32 @@ function PlanningScreen({projectId}:{projectId:number}) {
       throw e;
     }
   }])) as PlanningActions;
+  const busy = write.busy || sprintWrite.busy;
+  const readFailed = !!error || project.isError;
+  const currentSprint = sprintDialog && planning.data.sprints.find((sprint) => sprint.id === sprintDialog.sprint.id);
+  function openSprintDialog(id: number, operation: SprintDialogSelection['operation']) {
+    if (busy || readFailed || sprintWrite.uncertain) return;
+    try {
+      const sprint = sprintWrite.latestSprint(id);
+      if (operation === 'delete' && sprint.state !== 'FUTURE') return;
+      sprintWrite.clearError();
+      setLocalError('');
+      setSprintDialog({ sprint, operation });
+    } catch (failure) {
+      setLocalError(failure instanceof Error ? failure.message : 'Không thể mở sprint.');
+    }
+  }
   return <>
     {error && <div className="mb-4"><InlineAlert tone="error">{error.message} Dữ liệu đang hiển thị là lần tải trước. <Btn onClick={() => { void refs.refetch(); void planning.refetch(); }}>Thử lại</Btn></InlineAlert></div>}
-    <div className="mb-3 flex justify-end"><Btn disabled={planning.isFetching || write.busy} onClick={() => { void refs.refetch(); void planning.refetch(); }}><RefreshCw />Tải lại</Btn></div>
-    {(write.error || localError) && <div className="mb-4"><InlineAlert tone="error">{write.error || localError}</InlineAlert></div>}
-    <BacklogView data={planning.data} actions={safeActions} busy={write.busy} writeDisabled={!!error} notify={false} onOpenIssue={setSelected}
+    <div className="mb-3 flex justify-end"><Btn disabled={planning.isFetching || busy} onClick={() => { void refs.refetch(); void planning.refetch(); }}><RefreshCw />Tải lại</Btn></div>
+    {(write.error || localError || sprintWrite.uncertain && !sprintDialog) && <div className="mb-4"><InlineAlert tone="error">{write.error || localError || sprintWrite.error || 'Chưa xác nhận được kết quả sửa hoặc xóa sprint. Hãy tải lại trang.'}</InlineAlert></div>}
+    <BacklogView data={planning.data} actions={safeActions} busy={busy} writeDisabled={!!error} notify={false} onOpenIssue={setSelected}
+      onManageSprint={sprintWrite.uncertain ? undefined : openSprintDialog}
       permissions={{create:!error && permitted('CREATE_ISSUE'),edit:!error && canEdit,sprint:!error && canSprint,rank:!error && (canEdit || canSprint)}} />
+    {sprintDialog && <SprintDialog selection={sprintDialog} busy={busy} uncertain={sprintWrite.uncertain}
+      blocked={readFailed || !canSprint || currentSprint?.state !== sprintDialog.sprint.state}
+      error={sprintWrite.error} close={() => setSprintDialog(null)} retry={() => void sprintWrite.retry()}
+      save={(patch) => void sprintWrite.submit(sprintDialog.sprint.id, patch, () => setSprintDialog(null))} />}
     {selected !== null && <IssuePanel key={selected} projectId={projectId} issueId={selected} onClose={() => setSelected(null)} />}
   </>;
 }

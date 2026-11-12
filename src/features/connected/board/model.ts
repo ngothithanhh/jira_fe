@@ -1,12 +1,13 @@
 import type {IssueDto,StatusDto,SprintDto} from '../issues/model';
 export type ColumnDto={columnId:number;columnName:string;position:number;wipLimit:number;mappedStatusIds:number[]};
-export type BoardDto={boardId:number;projectId:number;boardName:string;boardType:string;columns:ColumnDto[]};
+export type BoardDto={boardId:number;projectId:number;boardName:string;boardType:string;columnOrderToken:string;columns:ColumnDto[]};
 export type CardDto={issue:IssueDto;columnId:number|null;position:number;version:number|null};
 export type BoardData={board:BoardDto;sprint:SprintDto|null;cards:CardDto[];sprintIssueIds:number[]};
 export type BoardFilter={keyword:string;assignee:string;typeId:string};
 export type MoveDraft={issueId:number;expectedVersion:number;columnId:number;position:number;statusIds:number[]};
 export const emptyFilter:BoardFilter={keyword:'',assignee:'',typeId:''};
 const ordered=(a:CardDto,b:CardDto)=>a.position-b.position||a.issue.issueId-b.issue.issueId;
+export const orderedColumns = (columns: ColumnDto[]) => [...columns].sort((a, b) => a.position - b.position || a.columnId - b.columnId);
 
 /** Giữ cả project để tính WIP, giao tập sprint để hiển thị; card unmapped không bị mất. */
 export function buildBoardView(data:BoardData,filter:BoardFilter) {
@@ -15,7 +16,7 @@ export function buildBoardView(data:BoardData,filter:BoardFilter) {
     &&(!filter.typeId||String(c.issue.issueTypeId)===filter.typeId)
     &&(!filter.assignee||(filter.assignee==='none'?c.issue.assigneeId===null:String(c.issue.assigneeId)===filter.assignee));
   const sprintCards=data.cards.filter((c)=>ids.has(c.issue.issueId));
-  const columns=[...data.board.columns].sort((a,b)=>a.position-b.position||a.columnId-b.columnId).map((column)=>{
+  const columns=orderedColumns(data.board.columns).map((column)=>{
     const all=data.cards.filter((c)=>c.columnId===column.columnId).sort(ordered);
     const cards=all.filter((c)=>ids.has(c.issue.issueId));
     return {column,all,cards,shown:cards.filter(visible),load:all.length,full:column.wipLimit>0&&all.length>=column.wipLimit};

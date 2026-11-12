@@ -2,8 +2,10 @@
 import {useRef,useState,type FormEvent} from 'react';
 import {Btn,Field,InlineAlert,Modal,TextInput,SelectInput} from '@/components/project-ui/kit';
 import {useIssueWrite,useIssueReferences,useIssueContext} from '../issues/queries';
-import type {BoardDto,ColumnDto,CardDto} from './model';
+import {orderedColumns,type BoardDto,type ColumnDto,type CardDto} from './model';
 import type {StatusDto} from '../issues/model';
+import {ColumnOrderEditor} from './column-order-editor';
+import {useColumnOrderWrite} from './column-order-write';
 
 /** Tạo board SCRUM bằng API; ba cột mặc định chưa có mapping được hiển thị đúng để cấu hình tiếp. */
 export function CreateBoard({projectId,onClose,onCreated,blocked=false}:{projectId:number;onClose:()=>void;onCreated:(board:BoardDto)=>void;blocked?:boolean}) {
@@ -19,28 +21,34 @@ export function CreateBoard({projectId,onClose,onCreated,blocked=false}:{project
 }
 
 /** Cấu hình đang mở giữ snapshot board để DELETE/refetch không unmount form trước completion kiểm actor. */
-export function BoardConfiguration({projectId,board,cards,readFailed,onClose,onDeleted}:{projectId:number;board:BoardDto;cards:CardDto[];readFailed:boolean;onClose:()=>void;onDeleted:()=>void}) {
+export function BoardConfiguration({projectId,board,cards,readFailed,selected,onClose,onDeleted}:{projectId:number;board:BoardDto;cards:CardDto[];readFailed:boolean;selected:boolean;onClose:()=>void;onDeleted:()=>void}) {
   const write=useIssueWrite(projectId);const refs=useIssueReferences(projectId);
+  const {actor}=useIssueContext(projectId);
+  const order=useColumnOrderWrite(actor,projectId,board.boardId,selected);
+  const busy=write.busy||order.busy;
+  const canManage=!readFailed&&selected&&!refs.error;
+  const blocked=busy||!canManage;
   const [name,setName]=useState(board.boardName);const [newColumn,setNewColumn]=useState('');
   const [confirm,setConfirm]=useState('');
-  const allowed=useRef(!readFailed&&!refs.error);allowed.current=!readFailed&&!refs.error;
+  const allowed=useRef(canManage);allowed.current=canManage;
   const send=async(path:string,method:string,body:unknown,message:string,done?:()=>void)=>{
-    if(readFailed)return;
+    if(blocked)return;
     try{await write.run(path,{method,...(body===undefined?{}:{body:JSON.stringify(body)})},message,done,()=>allowed.current);}catch{/* Từng nút là một request đã lưu; không ghép nhiều request thành transaction giả. */}
   };
-  return <Modal open title="Cấu hình board" description="Mỗi thao tác lưu riêng vào hệ thống. WIP được tính trên toàn dự án." width={760} onOpenChange={(v)=>{if(!v&&!write.busy)onClose();}} footer={<Btn disabled={write.busy} onClick={onClose}>Đóng</Btn>}>
+  return <Modal open title="Cấu hình board" description="Mỗi thao tác lưu riêng vào hệ thống. WIP được tính trên toàn dự án." width={760} onOpenChange={(v)=>{if(!v&&!busy)onClose();}} footer={<Btn disabled={busy} onClick={onClose}>Đóng</Btn>}>
     <div className="space-y-5">
       {readFailed&&<InlineAlert tone="warning">Chưa xác nhận được dữ liệu/quyền mới nhất. Đóng hộp thoại và tải lại trước khi ghi.</InlineAlert>}
       {write.error&&<InlineAlert tone="error">{write.error}</InlineAlert>}
-      {refs.error&&<InlineAlert tone="error">{refs.error.message}<Btn onClick={()=>void refs.refetch()}>Tải lại cấu hình</Btn></InlineAlert>}
+      {refs.error&&<InlineAlert tone="error">{refs.error.message}<Btn disabled={busy} onClick={()=>void refs.refetch()}>Tải lại cấu hình</Btn></InlineAlert>}
       <form className="flex items-end gap-2" onSubmit={(e)=>{e.preventDefault();void send(`boards/${board.boardId}`,'PATCH',{boardName:name},'Đã đổi tên board');}}>
-        <Field label="Tên board" required className="flex-1">{(p)=><TextInput {...p} required maxLength={100} value={name} disabled={write.busy} onChange={(e)=>setName(e.target.value)}/>}</Field><Btn type="submit" disabled={write.busy||!name.trim()}>Lưu tên board</Btn>
+        <Field label="Tên board" required className="flex-1">{(p)=><TextInput {...p} required maxLength={100} value={name} disabled={busy} onChange={(e)=>setName(e.target.value)}/>}</Field><Btn type="submit" disabled={blocked||!name.trim()}>Lưu tên board</Btn>
       </form>
-      <div className="space-y-3">{board.columns.map((c)=><ColumnForm key={c.columnId} column={c} board={board} statuses={refs.data?.statuses||[]} cards={cards} disabled={write.busy||readFailed||!!refs.error} send={send}/>)}</div>
+      <ColumnOrderEditor board={board} write={order} blocked={readFailed} selected={selected} otherBusy={write.busy}/>
+      <div className="space-y-3">{orderedColumns(board.columns).map((c)=><ColumnForm key={c.columnId} column={c} board={board} statuses={refs.data?.statuses||[]} cards={cards} disabled={blocked} send={send}/>)}</div>
       <form className="flex items-end gap-2 border-t pt-4" onSubmit={(e)=>{e.preventDefault();void send('boards/columns','POST',{boardId:board.boardId,columnName:newColumn,position:Math.max(0,...board.columns.map((c)=>c.position))+1},'Đã thêm cột',()=>setNewColumn(''));}}>
-        <Field label="Tên cột mới" required className="flex-1">{(p)=><TextInput {...p} required maxLength={100} value={newColumn} disabled={write.busy} onChange={(e)=>setNewColumn(e.target.value)}/>}</Field><Btn type="submit" disabled={write.busy||!newColumn.trim()}>Thêm cột</Btn>
+        <Field label="Tên cột mới" required className="flex-1">{(p)=><TextInput {...p} required maxLength={100} value={newColumn} disabled={busy} onChange={(e)=>setNewColumn(e.target.value)}/>}</Field><Btn type="submit" disabled={blocked||!newColumn.trim()}>Thêm cột</Btn>
       </form>
-      <div className="space-y-2 border-t pt-4"><p className="text-sm text-[#bf2600]">Xóa board giữ nguyên issue, project và sprint; cấu hình cột và thứ tự card của board này bị xóa.</p><Field label={`Nhập ${board.boardName} để xóa board`}>{(p)=><TextInput {...p} value={confirm} disabled={write.busy} onChange={(e)=>setConfirm(e.target.value)}/>}</Field><Btn variant="danger" disabled={write.busy||confirm!==board.boardName} onClick={()=>void send(`boards/${board.boardId}`,'DELETE',undefined,'Đã xóa board',onDeleted)}>Xóa board</Btn></div>
+      <div className="space-y-2 border-t pt-4"><p className="text-sm text-[#bf2600]">Xóa board giữ nguyên issue, project và sprint; cấu hình cột và thứ tự card của board này bị xóa.</p><Field label={`Nhập ${board.boardName} để xóa board`}>{(p)=><TextInput {...p} value={confirm} disabled={busy} onChange={(e)=>setConfirm(e.target.value)}/>}</Field><Btn variant="danger" disabled={blocked||confirm!==board.boardName} onClick={()=>void send(`boards/${board.boardId}`,'DELETE',undefined,'Đã xóa board',onDeleted)}>Xóa board</Btn></div>
     </div>
   </Modal>;
 }

@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { completeConnectedMutation, connectedMutation, connectedRequest, ConnectedError } from '../client';
+import { completeConnectedMutation, connectedMutation, connectedReadForActor, connectedRequest, ConnectedError } from '../client';
 import { useSession } from '../session';
 import { projectTypeFrom } from '../configuration/contract';
 import { useConnectedProject, useProjectMutationScope } from '../projects/queries';
@@ -63,10 +63,10 @@ export function usePlanning(projectId: number) {
     }
   },[refs.data,actor,projectId,client]);
   return useQuery({ queryKey: ['connected','planning',actor,projectId], enabled: enabled && !!refs.data, retry: false,
-    queryFn: async ({ signal }): Promise<PlanningData> => {
+    queryFn: ({ signal }): Promise<PlanningData> => connectedReadForActor(actor!, signal, async () => {
       const [sprints,backlog] = await Promise.all([
-        connectedRequest<SprintDto[]>(`sprints/project/${projectId}`,{signal}),
-        connectedRequest<IssueDto[]>(`projects/${projectId}/backlog`,{signal}),
+        connectedRequest<SprintDto[]>(`sprints/project/${projectId}`,{signal},false),
+        connectedRequest<IssueDto[]>(`projects/${projectId}/backlog`,{signal},false),
       ]);
       // Lấy reference từ cache tại lúc xử lý response; closure của query đang chạy có thể có trước lần refetch reference.
       const references = client.getQueryData<References>(['connected','issue-refs',actor,projectId]);
@@ -76,12 +76,12 @@ export function usePlanning(projectId: number) {
       const map = (i: IssueDto) => { assertProject(i,projectId); return planningIssue(i,references.statuses); };
       const groups = await Promise.all(open.map(async (s) => {
         assertProject(s,projectId);
-        const issues = await connectedRequest<IssueDto[]>(`sprints/${s.sprintId}/issues`,{signal});
+        const issues = await connectedRequest<IssueDto[]>(`sprints/${s.sprintId}/issues`,{signal},false);
         return { id: s.sprintId, name: s.sprintName, goal: s.goal ?? '', state: s.state, startDate: s.startDate, endDate: s.endDate, issues: issues.map(map) };
       }));
       return { projectId, projectName: project.data!.project.projectName, projectKey: project.data!.project.projectKey,
         sprints: groups, backlog: backlog.map(map), issueTypes: references.types.map((t) => ({ id: t.issueTypeId, name: t.issueTypeName, isDefault: t.isDefault })) };
-    } });
+    }) });
 }
 
 /**
