@@ -9,6 +9,7 @@ import {adminUserRoute,adminUserBody,type AdminUserAction} from './admin-users/c
 import {adminRoleRoute,roleBody} from './admin-roles/contract.ts';
 import { verificationRoute } from './registration/contract.ts';
 import { verificationBackend } from './registration/server.ts';
+import { invitationBackend, invitationRoute } from './invitations/server.ts';
 
 const ACCESS = 'jira_access';
 const REFRESH = 'jira_refresh';
@@ -77,6 +78,9 @@ function validRouteId(id: string | undefined) {
  */
 export async function backendRoute(request: Request, path: string[]) {
   const route = path.join('/');
+  const invitation = invitationRoute(path, request.method);
+  if (invitation) return invitationBackend(request, path, invitation, readCookie(request, ACCESS),
+    trustedOrigin(request), (name) => readCookie(request, name));
   const verification = verificationRoute(route, request.method);
   if (verification) return verificationBackend(request, verification, {
     access: readCookie(request, ACCESS), trustedOrigin: trustedOrigin(request),

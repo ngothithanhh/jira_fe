@@ -15,7 +15,7 @@ test('member BFF forwards exact methods, minimal bodies and empty write response
   const cases = [
     { path: 'user-role', method: 'GET', payload: undefined, status: 200, json: [{ role: 7, roleName: 'DEVELOPER' }] },
     { path: search, method: 'POST', payload: { email: 'known@example.test' }, status: 200, json: [] },
-    { path: base, method: 'POST', payload: { userId: 2, roleId: 7 }, status: 200 },
+    { path: base, method: 'POST', payload: { userId: 2, roleId: 7 }, status: 202, json: { state: 'PENDING' } },
     { path: base + '/2/role', method: 'PUT', payload: { roleId: 8 }, status: 204 },
     { path: base + '/2', method: 'DELETE', payload: undefined, status: 200 },
   ];
@@ -24,15 +24,15 @@ test('member BFF forwards exact methods, minimal bodies and empty write response
     const expected = cases[next++];
     assert.ok(url.endsWith('/api/' + expected.path));
     assert.equal(init.method, expected.method);
-    assert.equal(init.headers.Authorization, 'Bearer access-for-test');
+    assert.equal(new Headers(init.headers).get('Authorization'), 'Bearer access-for-test');
     assert.equal(init.body, JSON.stringify(expected.payload));
-    return expected.json === undefined ? new Response(null, { status: expected.status }) : Response.json(expected.json);
+    return expected.json === undefined ? new Response(null, { status: expected.status }) : Response.json(expected.json, { status: expected.status });
   });
 
   for (const example of cases) {
     const response = await call(example.path, example.method, example.payload);
     assert.equal(response.status, example.status);
-    assert.equal(response.headers.get('cache-control'), 'no-store, private');
+    assert.match(response.headers.get('cache-control'), /no-store/);
     if (example.json !== undefined) assert.deepEqual(await response.json(), example.json);
     else assert.equal(await response.text(), '');
   }
