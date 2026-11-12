@@ -6,9 +6,13 @@ import { useState, type FormEvent } from 'react';
 import { ClipboardList, Eye, EyeOff } from 'lucide-react';
 import { Btn, Field, FONT, InlineAlert, TextInput } from '@/components/project-ui/kit';
 import { announceSession, connectedRequest, hasPendingLogout, safeReturnTo, withSessionLock } from './client';
+import type { VerificationView } from './registration/contract';
+import { startRegistration } from './registration/queries';
 
 /** Form thật dùng cùng bộ giao diện đã duyệt; submit chỉ đổi trang sau khi BE đã xác nhận và Next đã cấp cookie. */
-export function ConnectedAuthScreen({ register = false }: { register?: boolean }) {
+export function ConnectedAuthScreen({ register = false, onRegistered, registrationNotice }: {
+  register?: boolean; onRegistered?: (view: VerificationView) => void; registrationNotice?: string;
+}) {
   const router = useRouter();
   const params = useSearchParams();
   const [form, setForm] = useState({ email: '', password: '', userName: '', fullName: '' });
@@ -23,14 +27,20 @@ export function ConnectedAuthScreen({ register = false }: { register?: boolean }
     if (pending) return;
     setPending(true); setError('');
     try {
+      if (register) {
+        const verification = await startRegistration(form);
+        setForm((value) => ({ ...value, password: '' }));
+        onRegistered?.(verification);
+        return;
+      }
       await withSessionLock(async () => {
         // Nếu từng logout lúc offline, hoàn tất xóa cookie trước khi tạo phiên người dùng mới.
         if (hasPendingLogout()) await connectedRequest('auth/logout', { method: 'POST' }, false);
-        return connectedRequest(`auth/${register ? 'register' : 'login'}`, { method: 'POST', body: JSON.stringify(form) }, false);
+        return connectedRequest('auth/login', { method: 'POST', body: JSON.stringify(form) }, false);
       });
       announceSession('changed');
       router.replace(target);
-    } catch (e) { setError(e instanceof Error ? e.message : 'Không thể đăng nhập.'); }
+    } catch (e) { setError(e instanceof Error ? e.message : register ? 'Không thể đăng ký.' : 'Không thể đăng nhập.'); }
     finally { setPending(false); }
   }
 
@@ -39,7 +49,7 @@ export function ConnectedAuthScreen({ register = false }: { register?: boolean }
       <Link href="/app/projects" className="mb-6 flex items-center justify-center gap-2 text-[22px] font-semibold"><ClipboardList size={28} className="text-[#0052cc]" />Quản lý dự án</Link>
       <form onSubmit={submit} className="space-y-5 rounded-[3px] bg-white px-8 py-8 shadow-[0_0_10px_rgba(9,30,66,0.1)]">
         <h1 className="text-center text-xl font-semibold">{register ? 'Tạo tài khoản' : 'Đăng nhập'}</h1>
-        {error && <InlineAlert tone="error">{error}</InlineAlert>}
+        {(error || registrationNotice) && <InlineAlert tone="error">{error || registrationNotice}</InlineAlert>}
         {register && <><Field label="Họ và tên" required>{(p) => <TextInput {...p} required maxLength={100} autoComplete="name" value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} />}</Field>
           <Field label="Tên người dùng" required>{(p) => <TextInput {...p} required maxLength={50} autoComplete="username" value={form.userName} onChange={(e) => setForm({ ...form, userName: e.target.value })} />}</Field></>}
         <Field label="Email" required>{(p) => <TextInput {...p} type="email" required maxLength={100} autoComplete="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />}</Field>

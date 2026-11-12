@@ -130,26 +130,7 @@ const check = (name) => { passed.push(name); console.log('PASS: ' + name); };
     assert.deepEqual(errors, []);
     check('no uncaught browser runtime errors');
 
-    const fresh = await browser.newContext();
-    const registration = await fresh.newPage();
-    await registration.goto(base + '/app/sign-up');
-    await registration.getByLabel(/^Họ và tên/).fill('Người dùng kiểm tra');
-    await registration.getByLabel(/^Tên người dùng/).fill('acceptance');
-    await registration.getByLabel(/^Email/).fill(`acceptance-${Date.now()}@example.test`);
-    await registration.getByLabel(/^Mật khẩu/).fill(credentials.password);
-    await registration.getByRole('button', { name: 'Tạo tài khoản', exact: true }).click();
-    await registration.waitForURL('**/app/projects');
-    await registration.getByText('Chưa có dự án', { exact: true }).waitFor();
-    check('real registration creates user and shows empty authorized scope');
-    await registration.goto(base + '/app/sign-up');
-    await registration.getByLabel(/^Họ và tên/).fill(pm.fullName);
-    await registration.getByLabel(/^Tên người dùng/).fill('duplicate');
-    await registration.getByLabel(/^Email/).fill(pm.email);
-    await registration.getByLabel(/^Mật khẩu/).fill(credentials.password);
-    await registration.getByRole('button', { name: 'Tạo tài khoản', exact: true }).click();
-    await registration.getByText('Email đã được sử dụng. Vui lòng đăng nhập hoặc dùng email khác.', { exact: true }).waitFor();
-    check('duplicate registration returns a correctable conflict without creating a user');
-    await fresh.close();
+    // Đăng ký/OTP được kiểm riêng với PostgreSQL và Brevo giả lập trong connected-email-verification.browser.cjs.
     fs.writeFileSync(path.join(output, 'browser-results.json'), JSON.stringify({ passed, count: passed.length, base }, null, 2));
   } finally { await browser.close(); }
 })().catch((error) => { console.error(error); process.exitCode = 1; });

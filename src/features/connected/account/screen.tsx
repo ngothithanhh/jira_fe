@@ -7,6 +7,7 @@ import { Avatar, Btn, Card, Field, InlineAlert, PageHeading, TextInput } from '@
 import { changeConnectedPassword, completeConnectedMutation, connectedMutation, hasPendingLogout } from '../client';
 import { useProjectMutationScope } from '../projects/queries';
 import { useSession, type AccountContext } from '../session';
+import { AccountEmailVerification } from '../registration/account-screen';
 import { validNewPassword, validOldPassword, type PasswordDraft, type ProfileDraft } from './contract';
 
 const sessionKey = ['connected', 'session'] as const;
@@ -178,6 +179,7 @@ function AccountForm({ context }: { context: AccountContext }) {
           </form>
         </Card>
       </div>
+      <AccountEmailVerification userId={user.userId} />
     </div>
   );
 }
