@@ -8,7 +8,7 @@
     "start": "next start",
     "test:planning": "node --experimental-strip-types --test tests/planning-model.test.mjs",
     "test:ui-demo": "node --experimental-strip-types --test tests/ui-demo-model.test.mjs",
-    "test:connected": "node --experimental-strip-types --test tests/connected-server.test.mjs tests/connected-client.test.mjs tests/connected-projects.test.mjs tests/connected-issues.test.mjs tests/connected-board.test.mjs tests/connected-members.test.mjs tests/connected-account.test.mjs tests/connected-collaboration.test.mjs tests/connected-configuration.test.mjs tests/connected-admin-users.test.mjs tests/connected-admin-roles.test.mjs tests/connected-role-matrix.test.mjs tests/connected-audit.test.mjs",
+    "test:connected": "node --experimental-strip-types --test tests/connected-server.test.mjs tests/connected-client.test.mjs tests/connected-projects.test.mjs tests/connected-issues.test.mjs tests/connected-board.test.mjs tests/connected-members.test.mjs tests/connected-account.test.mjs tests/connected-collaboration.test.mjs tests/connected-configuration.test.mjs tests/connected-admin-users.test.mjs tests/connected-admin-roles.test.mjs tests/connected-role-matrix.test.mjs tests/connected-audit.test.mjs tests/connected-admin-overview.test.mjs tests/connected-sprint-management.test.mjs tests/connected-email-verification.test.mjs tests/connected-invitations.test.mjs",
     "test:connected:browser": "node tests/connected-browser.smoke.cjs",
     "test:projects:browser": "node tests/connected-projects.browser.cjs",
     "lint": "next lint && eslint .",

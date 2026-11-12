@@ -21,7 +21,8 @@ test('overview validates all seven counts and preserves real zero', () => {
 
 test('overview allowlist rejects other admin routes, methods, query and missing session', async (t) => {
   const upstream = t.mock.method(globalThis, 'fetch', async () => assert.fail('Unexpected upstream call'));
-  assert.equal((await route('admin/audit-logs')).status, 404);
+  // Audit đã được nối riêng; tuyến quản trị không khai báo vẫn bị chặn trước upstream.
+  assert.equal((await route('admin/unknown-feature')).status, 404);
   assert.equal((await route('admin/overview', 'POST')).status, 404);
   assert.equal((await route('admin/overview?userId=12')).status, 400);
   assert.equal((await route('admin/overview', 'GET', '')).status, 401);
