@@ -8,6 +8,8 @@
     "start": "next start",
     "test:planning": "node --experimental-strip-types --test tests/planning-model.test.mjs",
     "test:ui-demo": "node --experimental-strip-types --test tests/ui-demo-model.test.mjs",
+    "test:connected": "node --experimental-strip-types --test tests/connected-server.test.mjs tests/connected-client.test.mjs",
+    "test:connected:browser": "node tests/connected-browser.smoke.cjs",
     "lint": "next lint && eslint .",
     "lint:fix": "next lint --fix && eslint . --fix",
     "format": "prettier --check . --config .prettierrc.mjs",
