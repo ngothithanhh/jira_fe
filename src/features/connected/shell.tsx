@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
-import { ClipboardList, FolderKanban, LogOut, UserRound } from 'lucide-react';
+import { ClipboardList, FolderKanban, LogOut, Settings2, UserRound } from 'lucide-react';
 import { toast } from 'sonner';
 import { Btn, FONT, InlineAlert } from '@/components/project-ui/kit';
 import { announceSession, connectedRequest, markLogoutPending, withSessionLock } from './client';
@@ -50,6 +50,10 @@ export function ConnectedShell({ children }: { children: ReactNode }) {
       <nav aria-label="Điều hướng chính" className="flex shrink-0 flex-wrap gap-1 border-b border-[#dfe1e6] bg-[#fafbfc] p-3 sm:w-60 sm:flex-col sm:flex-nowrap sm:border-b-0 sm:border-r">
         {[{ href: '/app/projects', label: 'Dự án', Icon: FolderKanban }, { href: '/app/account', label: 'Tài khoản', Icon: UserRound }].map(({ href, label, Icon }) => <Link key={href} href={href} aria-current={path === href ? 'page' : undefined} className={`flex items-center gap-2 rounded-[3px] px-3 py-2 text-sm ${path === href ? 'bg-[#e9f2ff] font-medium text-[#0052cc]' : 'hover:bg-[#ebecf0]'}`}><Icon size={18} />{label}</Link>)}
         {selectedProjectId !== null && <ProjectNavigation id={selectedProjectId} />}
+        {session.data.systemAdmin && <Link href="/app/admin/issue-types"
+          className={`flex items-center gap-2 rounded px-3 py-2 text-sm ${path.startsWith('/app/admin/') ? 'bg-[#e9f2ff] text-[#0052cc]' : 'hover:bg-[#ebecf0]'}`}>
+          <Settings2 size={18} /> Cấu hình hệ thống
+        </Link>}
       </nav>
       <main className="min-w-0 flex-1 p-5 sm:p-8">{children}</main>
     </div>

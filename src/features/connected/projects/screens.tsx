@@ -117,7 +117,9 @@ function ProjectSettingsForm({ project, canEdit, canDelete }: { project: Project
     catch { /* Giữ bản nháp và lỗi mutation để người dùng quyết định thử lại. */ }
     finally { submitting.current = false; setBusy(false); }
   }
-  return <div className="max-w-2xl space-y-6"><PageHeading title="Cài đặt dự án" breadcrumbs={[{ label: 'Dự án', href: '/app/projects' }, { label: project.projectKey, href: `/app/projects/${project.projectId}/overview` }, { label: 'Thông tin' }]} />
+  return <div className="max-w-2xl space-y-6"><PageHeading title="Cài đặt dự án"
+    actions={<Link className="text-sm font-medium text-[#0052cc] hover:underline" href={`/app/projects/${project.projectId}/settings/issue-types`}>Loại công việc</Link>}
+    breadcrumbs={[{ label: 'Dự án', href: '/app/projects' }, { label: project.projectKey, href: `/app/projects/${project.projectId}/overview` }, { label: 'Thông tin' }]} />
     {!canEdit && <InlineAlert tone="info">Bạn chỉ được xem thông tin dự án.</InlineAlert>}
     <form className="space-y-4" onSubmit={submit}>
       {save.isError && <InlineAlert tone="error">{save.error.message}</InlineAlert>}{save.isSuccess && !dirty && <InlineAlert tone="success">Đã lưu thông tin dự án.</InlineAlert>}
