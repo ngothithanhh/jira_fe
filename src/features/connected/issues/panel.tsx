@@ -7,6 +7,7 @@ import { connectedRequest } from '../client';
 import { priorities } from './contract';
 import { initialFilters, type IssueDto, type References, type StatusDto } from './model';
 import { useIssueContext, useIssueDetail, useIssueReferences, useIssueSearch, useIssueWrite } from './queries';
+import { IssueCollaboration } from '../collaboration/section';
 
 type Draft = { summary: string; description: string; priority: string; storyPoints: number };
 const draftOf = (i: IssueDto): Draft => ({ summary: i.summary, description: i.description ?? '', priority: i.priority ?? 'MEDIUM', storyPoints: i.storyPoints });
@@ -66,13 +67,20 @@ export function CreateIssue({ projectId, onClose }: { projectId: number; onClose
 export function IssuePanel({ projectId, issueId, onClose, readOnly = false }: { projectId: number; issueId: number; onClose: () => void; readOnly?: boolean }) {
   const detail = useIssueDetail(projectId,issueId);
   const refs = useIssueReferences(projectId);
-  const [busy,setBusy] = useState(false);
-  const error = detail.error || refs.error;
+  const {project:gate} = useIssueContext(projectId);
+  const [editorBusy,setBusy] = useState(false);
+  const [collaborationBusy,setCollaborationBusy] = useState(false);
+  const busy=editorBusy||collaborationBusy;
+  const error = detail.error || refs.error || gate.error;
   return <Sheet open onOpenChange={(v) => { if (!v && !busy) onClose(); }}><SheetContent className="w-full overflow-y-auto sm:max-w-[680px]" onEscapeKeyDown={(e) => { if (busy) e.preventDefault(); }} onPointerDownOutside={(e) => { if (busy) e.preventDefault(); }}>
     <SheetHeader><SheetTitle>{detail.data?.issueKey || 'Chi tiết công việc'}</SheetTitle><SheetDescription>Thông tin công việc trong dự án.</SheetDescription></SheetHeader>
-    {error && <div className="mt-5 space-y-3"><InlineAlert tone="error">{error.message} Bản nháp được giữ lại; tải lại dữ liệu trước khi lưu tiếp.</InlineAlert><Btn disabled={busy} onClick={() => { void detail.refetch(); void refs.refetch(); }}>Tải lại dữ liệu</Btn></div>}
+    {error && <div className="mt-5 space-y-3"><InlineAlert tone="error">{error.message} Bản nháp được giữ lại; tải lại dữ liệu trước khi lưu tiếp.</InlineAlert><Btn disabled={busy} onClick={() => { void gate.refetch(); void detail.refetch(); void refs.refetch(); }}>Tải lại dữ liệu</Btn></div>}
     {/* Lỗi refetch không unmount editor: giữ draft và scope completion của DELETE đã được BE xác nhận. */}
-    {detail.data && refs.data ? <IssueEditor key={issueId} projectId={projectId} issue={detail.data} refs={refs.data} onClose={onClose} onBusy={setBusy} readFailed={!!error || readOnly} reload={() => { void detail.refetch(); void refs.refetch(); }} /> : !error && <p role="status" className="py-8 text-sm">Đang tải công việc…</p>}
+    {detail.data && refs.data ? <>
+      <IssueEditor key={issueId} projectId={projectId} issue={detail.data} refs={refs.data} onClose={onClose} onBusy={setBusy} readFailed={!!error || readOnly || collaborationBusy} reload={() => { void detail.refetch(); void refs.refetch(); }} />
+      {/* Cùng issue đã qua gate; hai vùng ghi khóa lẫn nhau nhưng lỗi refetch vẫn giữ bản nháp. */}
+      <IssueCollaboration key={'collaboration-'+issueId} projectId={projectId} issueId={issueId} readFailed={!!error||editorBusy} readOnly={readOnly} onBusy={setCollaborationBusy}/>
+    </> : !error && <p role="status" className="py-8 text-sm">Đang tải công việc…</p>}
   </SheetContent></Sheet>;
 }
 

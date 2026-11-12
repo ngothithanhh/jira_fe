@@ -3,6 +3,7 @@ import { accountBody } from './account/contract.ts';
 import { issueBody, issueRoute, type IssueRoute } from './issues/contract.ts';
 import { boardBody, boardRoute, type BoardAction } from './board/contract.ts';
 import { memberBody, memberRoute } from './members/contract.ts';
+import { collaborationRoute, commentBody, readAttachment, readAttachmentContent, UploadInputError, type CollaborationRoute } from './collaboration/contract.ts';
 
 const ACCESS = 'jira_access';
 const REFRESH = 'jira_refresh';
@@ -74,7 +75,8 @@ export async function backendRoute(request: Request, path: string[]) {
   // API issue chỉ mở theo whitelist riêng, kiểm query trước khi đọc cookie hay gọi Spring Boot.
   let issue: IssueRoute | null;
   let board: BoardAction | null;
-  try { issue = issueRoute(route, request.method, new URL(request.url).searchParams); board = boardRoute(route, request.method, new URL(request.url).searchParams); }
+  let collaboration: CollaborationRoute | null;
+  try { const query=new URL(request.url).searchParams; issue = issueRoute(route, request.method, query); board = boardRoute(route, request.method, query); collaboration=collaborationRoute(route,request.method,query); }
   catch (error) { return failure(400, (error as Error).message); }
   const authAction = request.method === 'POST' && /^auth\/(login|register|refresh|logout)$/.test(route);
   const projectItem = /^projects\/([1-9]\d*)$/.exec(route);
@@ -96,14 +98,14 @@ export async function backendRoute(request: Request, path: string[]) {
   const accountWrite = request.method === 'PATCH' && route === 'account/profile' ? 'profile'
     : request.method === 'POST' && route === 'account/password' ? 'password' : null;
   // Thêm tài khoản vào các API đã nối; giữ nguyên quyền truy cập project, board, thành viên, thông báo và báo cáo.
-  const protectedAction = readAction || notificationMutation || projectWrite || !!issue || !!board || !!member || !!accountWrite;
+  const protectedAction = readAction || notificationMutation || projectWrite || !!issue || !!board || !!member || !!accountWrite || !!collaboration;
   if (!authAction && !protectedAction) return failure(404, 'Chức năng chưa được kết nối.');
   // Tất cả mutation dùng cookie đều kiểm Origin; public auth vẫn không nhận Bearer cũ.
-  if ((authAction || notificationMutation || projectWrite || accountWrite || issue?.write || board?.write || (member && member !== 'roles')) && !trustedOrigin(request)) return failure(403, 'Nguồn yêu cầu không hợp lệ.');
+  if ((authAction || notificationMutation || projectWrite || accountWrite || issue?.write || board?.write || collaboration?.write || (member && member !== 'roles')) && !trustedOrigin(request)) return failure(403, 'Nguồn yêu cầu không hợp lệ.');
 
   // Chỉ chuyển query projectId hợp lệ; không chuyển actorId hoặc URL upstream từ người gọi.
-  let suffix = issue?.suffix || board?.suffix || '';
-  if (!issue && !board && !notificationRead && !notificationMutation && !reportRead && route !== 'account/context' && new URL(request.url).searchParams.size) return failure(400, 'Tham số không hợp lệ.');
+  let suffix = issue?.suffix || board?.suffix || collaboration?.suffix || '';
+  if (!issue && !board && !collaboration && !notificationRead && !notificationMutation && !reportRead && route !== 'account/context' && new URL(request.url).searchParams.size) return failure(400, 'Tham số không hợp lệ.');
   if (route === 'account/context') {
     const query = new URL(request.url).searchParams;
     if ([...query.keys()].some((key) => key !== 'projectId')) return failure(400, 'Tham số không hợp lệ.');
@@ -127,7 +129,14 @@ export async function backendRoute(request: Request, path: string[]) {
   if (route === 'auth/refresh' && !refresh) return clearSession(failure(401, 'Phiên đăng nhập đã hết hạn.'));
   if (route === 'auth/logout' && !refresh) return clearSession(new NextResponse(null, { status: 204, headers: NO_STORE }));
 
-  let body: string | undefined;
+  let body: string | FormData | undefined;
+  // Parse riêng JSON comment và multipart, sau xác thực/Origin nhưng trước khi gọi BE.
+  if(collaboration?.kind==='upload'){
+    try{body=await readAttachment(request);}catch(error){return failure(error instanceof UploadInputError?error.status:400,(error as Error).message);}
+  }else if(collaboration?.kind==='comment'||collaboration?.kind==='edit-comment'){
+    const raw=await request.text();if(raw.length>65536)return failure(413,'Bình luận quá dài.');
+    try{body=commentBody(collaboration.kind,JSON.parse(raw));}catch(error){return failure(400,error instanceof SyntaxError?'JSON không hợp lệ.':(error as Error).message);}
+  }
   if (route === 'auth/login' || route === 'auth/register') {
     // Giới hạn form và chỉ chuyển các trường hợp đồng; không nhận quyền/role hoặc refresh token từ body browser.
     const raw = await request.text();
@@ -190,9 +199,9 @@ export async function backendRoute(request: Request, path: string[]) {
     // Địa chỉ chỉ lấy từ cấu hình server, không dùng NEXT_PUBLIC_API_URL và không follow redirect mang Bearer ra nơi khác.
     const base = process.env.BACKEND_API_URL || 'http://127.0.0.1:8080/api';
     const upstream = await fetch(`${base.replace(/\/$/, '')}/${route}${suffix}`, {
-      method: request.method, body, cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(12000),
+      method: request.method, body, cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(collaboration?.kind==='upload'||collaboration?.kind==='delete-file'?60000:12000),
       // Auth public dùng form/refresh token riêng; Bearer cũ không được chặn login, refresh hoặc logout ở JWT filter.
-      headers: { ...(body ? { 'Content-Type': 'application/json' } : {}), ...(protectedAction && access ? { Authorization: `Bearer ${access}` } : {}) },
+      headers: { ...(typeof body==='string' ? { 'Content-Type': 'application/json' } : {}), ...(protectedAction && access ? { Authorization: `Bearer ${access}` } : {}) },
     });
     if (route === 'auth/logout') {
       // Đóng phiên cục bộ kể cả mất kết nối/revoke lỗi; không thông báo đã thu hồi phía BE nếu BE không xác nhận.
@@ -220,12 +229,21 @@ export async function backendRoute(request: Request, path: string[]) {
       const response = failure(upstream.status, message);
       return route === 'auth/refresh' && upstream.status === 401 ? clearSession(response) : response;
     }
+    // File local trả byte thật sau quyền BE; không parse JSON hoặc redirect tới URL do metadata chỉ định.
+    if(collaboration?.kind==='content'){
+      try{
+        const bytes=await readAttachmentContent(upstream),mime=upstream.headers.get('content-type')?.split(';')[0]||'';
+        const allowed=/^image\/(png|jpeg|gif|webp|bmp)$/.test(mime)?mime:'application/octet-stream';
+        return new NextResponse(bytes,{headers:{...NO_STORE,'Content-Type':allowed,'Content-Disposition':upstream.headers.get('content-disposition')||'attachment','X-Content-Type-Options':'nosniff'}});
+      }catch(error){return failure(error instanceof UploadInputError?error.status:502,'Không tải được nội dung tệp.');}
+    }
     // DELETE project có thể trả 200 rỗng, endpoint khác trả204; không cố parse JSON làm thành lỗi502.
     if (upstream.status === 204) return new NextResponse(null, { status: 204, headers: NO_STORE });
     const text = await upstream.text();
     if (!text && !authAction) return new NextResponse(null, { status: upstream.status, headers: NO_STORE });
     const data = JSON.parse(text);
-    return authAction ? establishSession(data) : NextResponse.json(data, { headers: NO_STORE });
+    // Comment/upload giữ201 từ BE; các route cũ giữ nguyên hợp đồng200 đã nối trước đó.
+    return authAction ? establishSession(data) : NextResponse.json(data, { headers: NO_STORE, status: collaboration ? upstream.status : 200 });
   } catch {
     if (accountWrite === 'password') return clearSession(failure(502, PASSWORD_UNCERTAIN));
     const response = failure(502, route === 'auth/logout'

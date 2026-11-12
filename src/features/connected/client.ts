@@ -19,7 +19,8 @@ export function markLogoutPending() { localStorage.setItem(LOGOUT_PENDING, '1');
 async function send(path: string, init?: RequestInit) {
   try {
     const response = await fetch(`/api/backend/${path}`, { ...init, credentials: 'same-origin', cache: 'no-store',
-      headers: { ...(init?.body ? { 'Content-Type': 'application/json' } : {}), ...init?.headers } });
+      // FormData cần boundary do browser tạo, không được ép JSON hoặc tự đặt boundary khác nội dung.
+      headers: { ...(init?.body && !(init.body instanceof FormData) ? { 'Content-Type': 'application/json' } : {}), ...init?.headers } });
     if (response.headers.get('X-Jira-Session-Cleared') === '1') localStorage.removeItem(LOGOUT_PENDING);
     return response;
   } catch { throw new ConnectedError(0, 'Mất kết nối. Kiểm tra dữ liệu trước khi thử lại thao tác.'); }
@@ -133,6 +134,17 @@ async function withMutationActor<T>(userId: number, isCurrent: () => boolean, di
 }
 
 type PasswordOutcome = 'changed' | 'uncertain' | 'expired';
+
+/** Tải byte dưới cùng khóa/actor với phiên; chỉ caller còn hiệu lực mới nhận Blob để tạo preview/download local. */
+export async function connectedFile(path:string,userId:number,isCurrent:()=>boolean) {
+  return withMutationActor(userId,isCurrent,async()=>{
+    const response=await send(path);
+    if(!response.ok)await readResponse(response);
+    const blob=await response.blob();
+    if(!isCurrent())throw new ConnectedError(409,'Phiên khởi tạo tải tệp đã kết thúc.');
+    return blob;
+  });
+}
 
 /** Password kết thúc phiên ngay dưới khóa. Probe actor chỉ chạy trước dispatch, vì BE204 vô hiệu JWT cũ. */
 export async function changeConnectedPassword(

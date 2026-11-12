@@ -13,7 +13,7 @@ const label=page=>page.getByRole('link',{name:/^Thông báo/});
  const browser=await chromium.launch({headless:true,executablePath:process.env.CHROMIUM_PATH});let page;const errors=[];
  try{
   const context=await browser.newContext({viewport:{width:1440,height:1000}});page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));
-  await login(page,fixture.recipient);let count=ok(await api(page,'notifications/unread-count')).count;assert.ok(count>=3);
+  await login(page,fixture.recipient);let count=ok(await api(page,'notifications/unread-count')).count;assert.ok(count>=4,'Fixture needs four unread items: two reads and one delete must leave an item for read-all');
   await label(page).click();await page.getByRole('heading',{name:'Thông báo',exact:true}).waitFor();await inbox(page).waitFor();
   await page.getByRole('tab',{name:/^Chưa đọc/}).click();await eventually(async()=>assert.equal(await inbox(page).locator('li').count(),count));
   let sent=0;page.on('request',r=>{if(r.method()==='PUT'&&/notifications\/\d+\/read$/.test(r.url()))sent++;});

@@ -11,7 +11,7 @@ import { validNewPassword, validOldPassword, type PasswordDraft, type ProfileDra
 
 const sessionKey = ['connected', 'session'] as const;
 const emptyPassword: PasswordDraft = { oldPassword: '', newPassword: '', confirm: '' };
-const nameQueries = new Set(['project', 'projects', 'members', 'issues', 'issue', 'issue-refs', 'planning', 'board', 'notifications', 'reports']);
+const nameQueries = new Set(['project', 'projects', 'members', 'issues', 'issue', 'issue-refs', 'planning', 'board', 'notifications', 'reports', 'comments', 'attachments']);
 type PasswordField = keyof PasswordDraft;
 
 export function ConnectedAccountProfile() {
