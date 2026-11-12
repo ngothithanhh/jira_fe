@@ -1,14 +1,17 @@
 export const entityTypes=['USER','PROJECT','ISSUE','SPRINT','BOARD','COMMENT','ATTACHMENT','WORKLOG','ROLE'] as const;
-export type AuditEntry={auditId:number;actorId:number|null;actorName:string|null;action:string;entityType:typeof entityTypes[number];entityId:number;description:string|null;createdAt:string;projectId:number|null};
+export type AuditEntry={auditId:number;actorId:number|null;actorName:string|null;action:string;entityType:typeof entityTypes[number];entityId:number|null;description:string|null;createdAt:string;projectId:number|null};
 export type AuditPage={items:AuditEntry[];page:number;size:number;totalItems:number;totalPages:number};
 export type AuditFilter={entityType:string;entityId:string;actorId:string;systemOnly:boolean;action:string;from:string;to:string;projectId:string};
 export const emptyFilter:AuditFilter={entityType:'',entityId:'',actorId:'',systemOnly:false,action:'',from:'',to:'',projectId:''};
 const id=(v:string)=>/^[1-9]\d*$/.test(v)&&Number(v)<=2147483647;
 const day=(v:string)=>/^\d{4}-\d{2}-\d{2}$/.test(v)&&Number(v.slice(0,4))>0&&!Number.isNaN(Date.parse(v+'T00:00:00Z'))&&new Date(v+'T00:00:00Z').toISOString().slice(0,10)===v;
+const numericId=(v:unknown)=>typeof v==='number'&&id(String(v));
+const legacyId=(v:unknown)=>v===null||typeof v==='number'&&Number.isInteger(v)&&v>=-2147483648&&v<=2147483647;
 const timestamp=(v:string)=>/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?$/.test(v)&&day(v.slice(0,10))&&Number(v.slice(11,13))<24&&Number(v.slice(14,16))<60&&Number(v.slice(17,19))<60;
 
 /** Draft từ form chỉ thành filter đã áp dụng khi hợp lệ; ngày theo đồng hồ DB, không đổi sang UTC. */
 export function auditQuery(filter:AuditFilter,page=0,size=20,project?:number){
+  if(filter.systemOnly&&filter.actorId)throw new Error('Chọn ID người thao tác hoặc thao tác hệ thống.');
   const q=new URLSearchParams({page:String(page),size:String(size)});
   if(filter.entityType)q.set('entityType',filter.entityType);
   if(filter.entityId)q.set('entityId',filter.entityId);
@@ -20,6 +23,8 @@ export function auditQuery(filter:AuditFilter,page=0,size=20,project?:number){
   const route=project===undefined?'admin/audit-logs':`projects/${project}/audit-logs`;
   return route+auditRoute(route,'GET',q)!.suffix;
 }
+
+const sortableTime=(v:string)=>v.slice(0,19)+'.'+(v.split('.')[1]||'').padEnd(9,'0');
 
 /** BFF chỉ mở GET danh sách; project trong URL không thể bị query ghi đè và không nhận tham số tùy ý. */
 export function auditRoute(route:string,method:string,query:URLSearchParams):{suffix:string}|null{
@@ -39,7 +44,7 @@ export function auditRoute(route:string,method:string,query:URLSearchParams):{su
   }
   if(query.has('entityId')&&!query.has('entityType')||query.get('systemOnly')==='true'&&query.has('actorId')
       ||Number(query.get('page')||0)*Number(query.get('size')||20)>2147483647)throw new Error('Bộ lọc nhật ký không hợp lệ.');
-  if(query.has('createdFrom')&&query.has('createdTo')&&Date.parse(query.get('createdFrom')!+'Z')>Date.parse(query.get('createdTo')!+'Z'))throw new Error('Ngày bắt đầu phải trước ngày kết thúc.');
+  if(query.has('createdFrom')&&query.has('createdTo')&&sortableTime(query.get('createdFrom')!)>sortableTime(query.get('createdTo')!))throw new Error('Ngày bắt đầu phải trước ngày kết thúc.');
   return {suffix:query.size?'?'+query.toString():''};
 }
 
@@ -48,8 +53,8 @@ export function auditPageFrom(value:unknown,project?:number):AuditPage{
   const data=value as AuditPage;
   if(!data||!Array.isArray(data.items)||![data.page,data.size,data.totalItems,data.totalPages].every(n=>Number.isSafeInteger(n)&&n>=0)||data.size<1||data.size>100||data.items.length>data.size)throw new Error('Dữ liệu nhật ký không hợp lệ.');
   return {page:data.page,size:data.size,totalItems:data.totalItems,totalPages:data.totalPages,items:data.items.map(row=>{
-    if(!row||!id(String(row.auditId))||!id(String(row.entityId))||!entityTypes.includes(row.entityType)||typeof row.action!=='string'||!row.action||typeof row.createdAt!=='string'||!timestamp(row.createdAt)
-       ||row.actorId!==null&&!id(String(row.actorId))||row.projectId!==null&&!id(String(row.projectId))||row.actorName!==null&&typeof row.actorName!=='string'||row.description!==null&&typeof row.description!=='string'||project!==undefined&&row.projectId!==project)throw new Error('Phạm vi hoặc nội dung nhật ký không hợp lệ.');
+    if(!row||!numericId(row.auditId)||!legacyId(row.entityId)||!entityTypes.includes(row.entityType)||typeof row.action!=='string'||!row.action||typeof row.createdAt!=='string'||!timestamp(row.createdAt)
+       ||row.actorId!==null&&!numericId(row.actorId)||row.projectId!==null&&!numericId(row.projectId)||row.actorName!==null&&typeof row.actorName!=='string'||row.description!==null&&typeof row.description!=='string'||project!==undefined&&row.projectId!==project)throw new Error('Phạm vi hoặc nội dung nhật ký không hợp lệ.');
     return {auditId:row.auditId,actorId:row.actorId,actorName:row.actorName,action:row.action,entityType:row.entityType,entityId:row.entityId,description:row.description,createdAt:row.createdAt,projectId:row.projectId};
   })};
 }
