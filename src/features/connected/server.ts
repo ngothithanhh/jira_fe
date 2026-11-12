@@ -138,7 +138,7 @@ export async function backendRoute(request: Request, path: string[]) {
 
   let body: string | FormData | undefined;
   // Role chỉ nhận mã tên; delete không có body, không cho gán quyền hoặc actor qua endpoint CRUD.
-  if(adminRole?.write){const raw=await request.text();if(raw.length>1024)return failure(413,'Dữ liệu quá dài.');
+  if(adminRole?.write){const raw=await request.text();if(raw.length>(adminRole.kind==='replace'?32768:1024))return failure(413,'Dữ liệu quá dài.');
     try{body=roleBody(adminRole.kind,raw);}catch(error){return failure(400,(error as Error).message);}}
   // Enabled chỉ là boolean; gán/gỡ role không có body. Kiểm trước gọi /me hoặc dispatch mutation.
   if(adminUser?.write){const raw=await request.text();if(raw.length>1024)return failure(413,'Dữ liệu quá dài.');
@@ -262,6 +262,8 @@ export async function backendRoute(request: Request, path: string[]) {
           :configuration.projectId!==undefined?'Loại đã gán, đang dùng hoặc là mặc định. Kiểm tra cấu hình trước khi gỡ/đổi.':'Cấu hình còn liên kết issue, project, mapping, workflow hoặc lịch sử nên chưa thể xóa.';
       }
       if(adminRole&&upstream.status===409)message='Vai trò mặc định, tên bị trùng hoặc dữ liệu còn được sử dụng. Tải lại để kiểm tra.';
+      if(adminRole?.kind==='replace'&&upstream.status===409)message='Quyền đã thay đổi hoặc vai trò không cho phép chỉnh sửa. Bản nháp được giữ; tải cấu hình mới trước khi lưu.';
+      if(adminRole?.kind==='replace'&&upstream.status===400)message='Tập quyền chứa mã không hợp lệ cho vai trò dự án.';
       if(adminUser?.kind==='grant'&&upstream.status===400)message='Chỉ SYSTEM_ADMIN được gán toàn hệ thống. Role khác được gán ở trang Thành viên dự án.';
       const response = failure(upstream.status, message);
       return route === 'auth/refresh' && upstream.status === 401 ? clearSession(response) : response;

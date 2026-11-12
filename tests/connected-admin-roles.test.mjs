@@ -1,13 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {adminRoleRoute,roleBody,rolesFrom,permissionsFrom} from '../src/features/connected/admin-roles/contract.ts';
+import {adminRoleRoute,roleBody,rolesFrom,permissionsFrom,matrixFrom} from '../src/features/connected/admin-roles/contract.ts';
 import {backendRoute} from '../src/features/connected/server.ts';
 const origin='http://localhost:3131';
 const request=(path,method='GET',body,headers={})=>new Request(origin+'/api/backend/'+path,{method,body,headers:{origin,cookie:'jira_access=access',...headers}});
 const route=req=>backendRoute(req,new URL(req.url).pathname.split('/api/backend/')[1].split('/'));
 test('R1 role contract only opens bounded catalog and CRUD, no matrix or grant route',()=>{
  for(const [p,m]of [['admin/roles','GET'],['permissions','GET'],['user-role','POST'],['user-role/4','PUT'],['user-role/4','DELETE']])assert.ok(adminRoleRoute(p,m,new URLSearchParams()));
- assert.equal(adminRoleRoute('roles/4/permissions','PUT',new URLSearchParams()),null);
+ assert.equal(adminRoleRoute('roles/4/permissions','PUT',new URLSearchParams()).kind,'replace');
+ assert.equal(adminRoleRoute('roles/4/permissions','POST',new URLSearchParams()),null);
  for(const id of ['0','-1','2147483648'])assert.throws(()=>adminRoleRoute('user-role/'+id,'DELETE',new URLSearchParams()));
  assert.throws(()=>adminRoleRoute('admin/roles','GET',new URLSearchParams('actor=4')));
 });
