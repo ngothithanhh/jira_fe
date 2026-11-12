@@ -96,7 +96,7 @@ export async function backendRoute(request: Request, path: string[]) {
     || validRouteId(/^sprints\/(\d+)\/reports\/(summary|burndown)$/.exec(route)?.[1])
   );
   const readAction = notificationRead || reportRead
-    || (request.method === 'GET' && (['auth/me', 'account/context', 'projects/getList'].includes(route) || !!projectItem));
+    || (request.method === 'GET' && (['auth/me', 'account/context', 'projects/getList', 'admin/overview'].includes(route) || !!projectItem));
   const accountWrite = request.method === 'PATCH' && route === 'account/profile' ? 'profile'
     : request.method === 'POST' && route === 'account/password' ? 'password' : null;
   // Thêm tài khoản vào các API đã nối; giữ nguyên quyền truy cập project, board, thành viên, thông báo và báo cáo.
