@@ -4,6 +4,7 @@ import { issueBody, issueRoute, type IssueRoute } from './issues/contract.ts';
 import { boardBody, boardRoute, type BoardAction } from './board/contract.ts';
 import { memberBody, memberRoute } from './members/contract.ts';
 import { collaborationRoute, commentBody, readAttachment, readAttachmentContent, UploadInputError, type CollaborationRoute } from './collaboration/contract.ts';
+import { configurationRoute,configurationBody,type ConfigurationAction } from './configuration/contract.ts';
 
 const ACCESS = 'jira_access';
 const REFRESH = 'jira_refresh';
@@ -76,7 +77,8 @@ export async function backendRoute(request: Request, path: string[]) {
   let issue: IssueRoute | null;
   let board: BoardAction | null;
   let collaboration: CollaborationRoute | null;
-  try { const query=new URL(request.url).searchParams; issue = issueRoute(route, request.method, query); board = boardRoute(route, request.method, query); collaboration=collaborationRoute(route,request.method,query); }
+  let configuration: ConfigurationAction | null;
+  try { const query=new URL(request.url).searchParams; issue = issueRoute(route, request.method, query); board = boardRoute(route, request.method, query); collaboration=collaborationRoute(route,request.method,query); configuration=configurationRoute(route,request.method,query); }
   catch (error) { return failure(400, (error as Error).message); }
   const authAction = request.method === 'POST' && /^auth\/(login|register|refresh|logout)$/.test(route);
   const projectItem = /^projects\/([1-9]\d*)$/.exec(route);
@@ -98,14 +100,14 @@ export async function backendRoute(request: Request, path: string[]) {
   const accountWrite = request.method === 'PATCH' && route === 'account/profile' ? 'profile'
     : request.method === 'POST' && route === 'account/password' ? 'password' : null;
   // Thêm tài khoản vào các API đã nối; giữ nguyên quyền truy cập project, board, thành viên, thông báo và báo cáo.
-  const protectedAction = readAction || notificationMutation || projectWrite || !!issue || !!board || !!member || !!accountWrite || !!collaboration;
+  const protectedAction = readAction || notificationMutation || projectWrite || !!issue || !!board || !!member || !!accountWrite || !!collaboration || !!configuration;
   if (!authAction && !protectedAction) return failure(404, 'Chức năng chưa được kết nối.');
   // Tất cả mutation dùng cookie đều kiểm Origin; public auth vẫn không nhận Bearer cũ.
-  if ((authAction || notificationMutation || projectWrite || accountWrite || issue?.write || board?.write || collaboration?.write || (member && member !== 'roles')) && !trustedOrigin(request)) return failure(403, 'Nguồn yêu cầu không hợp lệ.');
+  if ((authAction || notificationMutation || projectWrite || accountWrite || issue?.write || board?.write || collaboration?.write || configuration?.write || (member && member !== 'roles')) && !trustedOrigin(request)) return failure(403, 'Nguồn yêu cầu không hợp lệ.');
 
   // Chỉ chuyển query projectId hợp lệ; không chuyển actorId hoặc URL upstream từ người gọi.
-  let suffix = issue?.suffix || board?.suffix || collaboration?.suffix || '';
-  if (!issue && !board && !collaboration && !notificationRead && !notificationMutation && !reportRead && route !== 'account/context' && new URL(request.url).searchParams.size) return failure(400, 'Tham số không hợp lệ.');
+  let suffix = issue?.suffix || board?.suffix || collaboration?.suffix || configuration?.suffix || '';
+  if (!issue && !board && !collaboration && !configuration && !notificationRead && !notificationMutation && !reportRead && route !== 'account/context' && new URL(request.url).searchParams.size) return failure(400, 'Tham số không hợp lệ.');
   if (route === 'account/context') {
     const query = new URL(request.url).searchParams;
     if ([...query.keys()].some((key) => key !== 'projectId')) return failure(400, 'Tham số không hợp lệ.');
@@ -130,6 +132,12 @@ export async function backendRoute(request: Request, path: string[]) {
   if (route === 'auth/logout' && !refresh) return clearSession(new NextResponse(null, { status: 204, headers: NO_STORE }));
 
   let body: string | FormData | undefined;
+  if(configuration?.write&&['assign','default','delete'].includes(configuration.kind)&& (await request.text()).trim())return failure(400,'Thao tác này không nhận body.');
+  // Catalog chỉ nhận tên/nhóm hoặc hai ID status; gán/default/gỡ project không nhận actor/role từ body.
+  if(configuration&&['type','status','rule'].includes(configuration.kind)){
+    const raw=await request.text();if(raw.length>4096)return failure(413,'Dữ liệu cấu hình quá dài.');
+    try{body=configurationBody(configuration.kind as 'type'|'status'|'rule',JSON.parse(raw));}catch(error){return failure(400,error instanceof SyntaxError?'JSON không hợp lệ.':(error as Error).message);}
+  }
   // Parse riêng JSON comment và multipart, sau xác thực/Origin nhưng trước khi gọi BE.
   if(collaboration?.kind==='upload'){
     try{body=await readAttachment(request);}catch(error){return failure(error instanceof UploadInputError?error.status:400,(error as Error).message);}
@@ -226,6 +234,10 @@ export async function backendRoute(request: Request, path: string[]) {
       if (upstream.status === 400 && issue) message = 'Thao tác không hợp lệ với dữ liệu hiện tại. Kiểm tra loại công việc, workflow, người nhận và sprint.';
       if (upstream.status === 409 && board) message = 'Card/cấu hình đã thay đổi, cột đạt WIP hoặc sprint không còn cho phép thao tác. Tải lại trước khi thử tiếp.';
       if (upstream.status === 400 && board) message = 'Cột, trạng thái hoặc vị trí không hợp lệ với board hiện tại.';
+      if(configuration&&upstream.status===409){
+        message=configuration.kind==='rule'?'Cạnh workflow đã tồn tại.':configuration.kind==='type'?'Tên loại công việc đã tồn tại.':configuration.kind==='status'?'Tên trạng thái đã có hoặc nhóm khác nhóm cố định ban đầu.'
+          :configuration.projectId!==undefined?'Loại đã gán, đang dùng hoặc là mặc định. Kiểm tra cấu hình trước khi gỡ/đổi.':'Cấu hình còn liên kết issue, project, mapping, workflow hoặc lịch sử nên chưa thể xóa.';
+      }
       const response = failure(upstream.status, message);
       return route === 'auth/refresh' && upstream.status === 401 ? clearSession(response) : response;
     }
@@ -243,7 +255,7 @@ export async function backendRoute(request: Request, path: string[]) {
     if (!text && !authAction) return new NextResponse(null, { status: upstream.status, headers: NO_STORE });
     const data = JSON.parse(text);
     // Comment/upload giữ201 từ BE; các route cũ giữ nguyên hợp đồng200 đã nối trước đó.
-    return authAction ? establishSession(data) : NextResponse.json(data, { headers: NO_STORE, status: collaboration ? upstream.status : 200 });
+    return authAction ? establishSession(data) : NextResponse.json(data, { headers: NO_STORE, status: collaboration||configuration ? upstream.status : 200 });
   } catch {
     if (accountWrite === 'password') return clearSession(failure(502, PASSWORD_UNCERTAIN));
     const response = failure(502, route === 'auth/logout'

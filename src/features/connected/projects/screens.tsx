@@ -6,10 +6,11 @@ import { useParams, usePathname, useRouter } from 'next/navigation';
 import { useMutation } from '@tanstack/react-query';
 import { Home, MoreHorizontal, Settings2, ListChecks, ListTodo, Columns3, Users, ChartNoAxesCombined } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Btn, Card, FONT, InlineAlert, PageHeading, StateView } from '@/components/project-ui/kit';
+import { Btn, Card, TabBar, FONT, InlineAlert, PageHeading, StateView } from '@/components/project-ui/kit';
 import { ProjectFields, ProjectsListView, type ProjectDraft, type ProjectListItem } from '@/components/project-ui/project-views';
 import { completeConnectedMutation, connectedMutation, ConnectedError } from '../client';
 import { useSession } from '../session';
+import {ProjectTypeSettings,WorkflowScreen} from '../configuration/screens';
 import { CreateConnectedProject, DeleteConnectedProject } from './dialogs';
 import { projectErrors, projectIdFromRoute, projectItem, projectPayload, type ProjectDto } from './model';
 import { useConnectedProject, useProjectMutationScope, useProjects, useRefreshProjects } from './queries';
@@ -86,7 +87,8 @@ export function ConnectedProjectOverview() {
 export function ConnectedProjectSettings() {
   const params = useParams<{ projectId: string }>();
   const { data } = useConnectedProject(projectIdFromRoute(params.projectId));
-  return data ? <ProjectSettingsForm key={data.project.projectId} project={data.project} canEdit={data.context.projectPermissions.includes('UPDATE_PROJECT')} canDelete={data.context.globalPermissions.includes('DELETE_PROJECT')} /> : null;
+  const [tab,setTab]=useState<'info'|'types'|'workflow'>('info');
+  return data ? <div className="space-y-5"><TabBar label="Cài đặt dự án" tabs={[{value:'info',label:'Thông tin'},{value:'types',label:'Loại công việc'},{value:'workflow',label:'Workflow'}]} value={tab} onChange={setTab}/><div hidden={tab!=='info'}><ProjectSettingsForm key={data.project.projectId} project={data.project} canEdit={data.context.projectPermissions.includes('UPDATE_PROJECT')} canDelete={data.context.globalPermissions.includes('DELETE_PROJECT')} /></div>{tab==='types'&&<ProjectTypeSettings projectId={data.project.projectId}/ >}{tab==='workflow'&&<WorkflowScreen readOnly/>}</div> : null;
 }
 
 /** Form thông tin dùng fields đã duyệt; chỉ tên/mô tả được ghi, lead/key giữ read-only theo API thật. */

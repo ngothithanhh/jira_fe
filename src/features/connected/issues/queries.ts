@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { completeConnectedMutation, connectedMutation, connectedRequest, ConnectedError } from '../client';
 import { useSession } from '../session';
+import { projectTypeFrom } from '../configuration/contract';
 import { useConnectedProject, useProjectMutationScope } from '../projects/queries';
 import { assertProject, planningIssue, searchQuery, type Filters, type IssueDto, type IssuePage, type References, type SprintDto, type StatusDto, type TypeDto, type MemberDto } from './model';
 import type { PlanningData } from '../../backlog/types';
@@ -27,7 +28,7 @@ export function useIssueReferences(projectId: number) {
         connectedRequest<TypeDto[]>(`projects/${projectId}/issue-types`,{signal}),
         connectedRequest<MemberDto[]>(`projects/${projectId}/members`,{signal}),
       ]);
-      return { statuses,types,members };
+      return { statuses,types:types.map(projectTypeFrom),members };
     } });
 }
 
