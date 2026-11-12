@@ -46,7 +46,7 @@ function establishSession(data: unknown) {
   return response;
 }
 
-/** Mutation chỉ nhận từ origin ứng dụng đã cấu hình, ngăn website khác dùng cookie để tạo phiên hoặc logout. */
+/** Mutation chỉ nhận từ origin ứng dụng đã cấu hình để bảo vệ thao tác dùng cookie. */
 function trustedOrigin(request: Request) {
   // Next có thể dựng request.url bằng localhost nội bộ dù browser mở 127.0.0.1.
   // Khi chưa cấu hình public origin, dùng Host của HTTP request; không dùng chính Origin làm giá trị tin cậy.
@@ -55,17 +55,33 @@ function trustedOrigin(request: Request) {
   return request.headers.get('origin') === allowed;
 }
 
+/** ID dự án, sprint và thông báo trên các route mới đều là số nguyên dương kiểu int của Spring. */
+function validRouteId(id: string | undefined) {
+  return id !== undefined && /^[1-9]\d*$/.test(id) && Number(id) <= 2147483647;
+}
+
 /**
- * Browser gọi /api/backend; route chỉ chuyển các API đã nối ở phần 1 tới Spring Boot.
- * path không bao giờ trở thành URL tùy ý. GET đọc DB qua BE, auth mutation chỉ ghi refresh_tokens theo BE.
- * Không tự retry: timeout có thể xảy ra sau khi BE đã rotation hoặc thu hồi token.
+ * Browser gọi /api/backend; chỉ method và path đã liệt kê được chuyển tới Spring Boot.
+ * Spring xác thực JWT và kiểm quyền nghiệp vụ. BFF không gửi lại mutation khi upstream lỗi.
  */
 export async function backendRoute(request: Request, path: string[]) {
   const route = path.join('/');
   const authAction = request.method === 'POST' && /^auth\/(login|register|refresh|logout)$/.test(route);
-  const readAction = request.method === 'GET' && ['auth/me', 'account/context', 'projects/getList'].includes(route);
-  if (!authAction && !readAction) return failure(404, 'Chức năng chưa được kết nối.');
-  if (authAction && !trustedOrigin(request)) return failure(403, 'Nguồn yêu cầu không hợp lệ.');
+  const notificationRead = request.method === 'GET' && ['notifications', 'notifications/unread-count'].includes(route);
+  const markOne = request.method === 'PUT' && validRouteId(/^notifications\/(\d+)\/read$/.exec(route)?.[1]);
+  const deleteOne = request.method === 'DELETE' && validRouteId(/^notifications\/(\d+)$/.exec(route)?.[1]);
+  const notificationMutation = markOne || deleteOne || (request.method === 'PUT' && route === 'notifications/read-all');
+  const velocity = /^projects\/(\d+)\/reports\/velocity$/.exec(route);
+  const reportRead = request.method === 'GET' && (
+    validRouteId(velocity?.[1])
+    || validRouteId(/^sprints\/project\/(\d+)$/.exec(route)?.[1])
+    || validRouteId(/^sprints\/(\d+)\/reports\/(summary|burndown)$/.exec(route)?.[1])
+  );
+  const readAction = notificationRead || reportRead
+    || (request.method === 'GET' && ['auth/me', 'account/context', 'projects/getList'].includes(route));
+  const protectedAction = readAction || notificationMutation;
+  if (!authAction && !protectedAction) return failure(404, 'Chức năng chưa được kết nối.');
+  if ((authAction || notificationMutation) && !trustedOrigin(request)) return failure(403, 'Nguồn yêu cầu không hợp lệ.');
 
   // Chỉ chuyển query projectId hợp lệ; không chuyển actorId hoặc URL upstream từ người gọi.
   let suffix = '';
@@ -75,10 +91,20 @@ export async function backendRoute(request: Request, path: string[]) {
     const projectId = query.get('projectId');
     if (projectId !== null && (!/^[1-9]\d*$/.test(projectId) || Number(projectId) > 2147483647)) return failure(400, 'ID dự án không hợp lệ.');
     suffix = projectId ? `?projectId=${projectId}` : '';
+  } else if (notificationRead || notificationMutation || reportRead) {
+    // Chỉ chuyển filter của inbox hoặc giới hạn velocity, tối đa một giá trị.
+    const query = [...new URL(request.url).searchParams];
+    if (query.length > 0) {
+      const [key, value] = query[0];
+      const unreadFilter = route === 'notifications' && key === 'unreadOnly' && (value === 'true' || value === 'false');
+      const velocityLimit = velocity && key === 'limit' && /^[1-9]\d?$/.test(value) && Number(value) <= 50;
+      if (query.length !== 1 || (!unreadFilter && !velocityLimit)) return failure(400, 'Tham số không hợp lệ.');
+      suffix = `?${key}=${value}`;
+    }
   }
   const access = readCookie(request, ACCESS);
   const refresh = readCookie(request, REFRESH);
-  if (readAction && !access) return failure(401, 'Bạn cần đăng nhập.');
+  if (protectedAction && !access) return failure(401, 'Bạn cần đăng nhập.');
   if (route === 'auth/refresh' && !refresh) return clearSession(failure(401, 'Phiên đăng nhập đã hết hạn.'));
   if (route === 'auth/logout' && !refresh) return clearSession(new NextResponse(null, { status: 204, headers: NO_STORE }));
 
@@ -106,7 +132,7 @@ export async function backendRoute(request: Request, path: string[]) {
     const upstream = await fetch(`${base.replace(/\/$/, '')}/${route}${suffix}`, {
       method: request.method, body, cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(12000),
       // Auth public dùng form/refresh token riêng; Bearer cũ không được chặn login, refresh hoặc logout ở JWT filter.
-      headers: { ...(body ? { 'Content-Type': 'application/json' } : {}), ...(readAction && access ? { Authorization: `Bearer ${access}` } : {}) },
+      headers: { ...(body ? { 'Content-Type': 'application/json' } : {}), ...(protectedAction && access ? { Authorization: `Bearer ${access}` } : {}) },
     });
     if (route === 'auth/logout') {
       // Đóng phiên cục bộ kể cả mất kết nối/revoke lỗi; không thông báo đã thu hồi phía BE nếu BE không xác nhận.
@@ -120,6 +146,10 @@ export async function backendRoute(request: Request, path: string[]) {
       if (upstream.status === 409 && route === 'auth/register') message = 'Email đã được sử dụng. Vui lòng đăng nhập hoặc dùng email khác.';
       const response = failure(upstream.status, message);
       return route === 'auth/refresh' && upstream.status === 401 ? clearSession(response) : response;
+    }
+    // Mark-one trả 200 rỗng, delete trả 204. Giữ status để client nhận đúng kết quả thao tác.
+    if ((markOne && upstream.status === 200) || (deleteOne && upstream.status === 204)) {
+      return new NextResponse(null, { status: upstream.status, headers: NO_STORE });
     }
     const data = await upstream.json();
     return authAction ? establishSession(data) : NextResponse.json(data, { headers: NO_STORE });
