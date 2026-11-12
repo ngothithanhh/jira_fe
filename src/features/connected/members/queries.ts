@@ -17,7 +17,7 @@ export type Member = {
 export type Candidate = Pick<Member, 'userId' | 'userName' | 'fullName'>;
 export type ProjectRole = { role: number; roleName: string };
 type MemberChange =
-  | { kind: 'add' | 'role'; userId: number; roleId: number }
+  | { kind: 'role'; userId: number; roleId: number }
   | { kind: 'remove'; userId: number };
 
 const memberPath = (projectId: number) => 'projects/' + projectId + '/members';
@@ -77,10 +77,7 @@ export function useMemberCandidate(actorId: number, projectId: number, email: st
 function memberMutation(projectId: number, change: MemberChange) {
   const path = memberPath(projectId);
   if (change.kind === 'remove') return { path: path + '/' + change.userId, init: { method: 'DELETE' } };
-  if (change.kind === 'role') {
-    return { path: path + '/' + change.userId + '/role', init: { method: 'PUT', body: JSON.stringify({ roleId: change.roleId }) } };
-  }
-  return { path, init: { method: 'POST', body: JSON.stringify({ userId: change.userId, roleId: change.roleId }) } };
+  return { path: path + '/' + change.userId + '/role', init: { method: 'PUT', body: JSON.stringify({ roleId: change.roleId }) } };
 }
 
 export function useMemberWrite(actorId: number, projectId: number) {
@@ -116,8 +113,6 @@ export function useMemberWrite(actorId: number, projectId: number) {
           queryClient.invalidateQueries({ queryKey: ['connected', 'issue-refs', actorId, projectId] }),
           queryClient.invalidateQueries({ queryKey: projectKeys.list(actorId) }),
           queryClient.invalidateQueries({ queryKey: projectKeys.detail(actorId, projectId) }),
-          ...(change.kind === 'add' && change.userId === actorId
-            ? [queryClient.invalidateQueries({ queryKey: ['connected', 'notifications', actorId] })] : []),
         ]);
       });
       if (!accepted) {

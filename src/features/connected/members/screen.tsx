@@ -1,13 +1,13 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useState } from 'react';
 import { Crown, Plus } from 'lucide-react';
-import { Avatar, Btn, EmptyState, Field, InlineAlert, Modal, PageHeading, SearchInput, SelectInput, TextInput, formatDate, tableClass, tdClass, thClass } from '@/components/project-ui/kit';
+import { Avatar, Btn, EmptyState, InlineAlert, Modal, PageHeading, SearchInput, SelectInput, formatDate, tableClass, tdClass, thClass } from '@/components/project-ui/kit';
 import { useSession } from '../session';
 import { useConnectedProject } from '../projects/queries';
 import type { ProjectDto } from '../projects/model';
-import { isCandidateEmail } from './contract';
-import { useMemberCandidate, useMemberRoles, useMembers, useMemberWrite, type Member, type ProjectRole } from './queries';
+import { ProjectInvitations } from '../invitations/project-panel';
+import { useMemberRoles, useMembers, useMemberWrite, type Member } from './queries';
 
 const manager = 'PROJECT_MANAGER';
 const displayName = (member: Member) => member.fullName || member.userName;
@@ -19,11 +19,12 @@ export function ConnectedMembers({ projectId }: { projectId: number }) {
   if (actor === undefined || session.switching || !project.data) return null;
   const { context } = project.data;
   const can = (permission: string) => !project.isError && (context.systemAdmin || context.projectPermissions.includes(permission));
-  return <MemberScreen key={actor + ':' + projectId} actor={actor} project={project.data.project} canAdd={can('ADD_MEMBER')} canRemove={can('DELETE_MEMBER')} readFailed={project.isError} reloadProject={()=>void project.refetch()} />;
+  return <MemberScreen key={actor + ':' + projectId} actor={actor} project={project.data.project} canAdd={can('ADD_MEMBER')}
+    canRemove={can('DELETE_MEMBER')} readFailed={project.isError} reloadProject={() => void project.refetch()} />;
 }
 
 function MemberScreen({ actor, project, canAdd, canRemove, readFailed, reloadProject }: {
-  actor: number; project: ProjectDto; canAdd: boolean; canRemove: boolean; readFailed: boolean; reloadProject:()=>void;
+  actor: number; project: ProjectDto; canAdd: boolean; canRemove: boolean; readFailed: boolean; reloadProject: () => void;
 }) {
   const projectId = project.projectId;
   const members = useMembers(actor, projectId);
@@ -32,6 +33,7 @@ function MemberScreen({ actor, project, canAdd, canRemove, readFailed, reloadPro
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState(0);
   const [adding, setAdding] = useState(false);
+  const [invitations, setInvitations] = useState(false);
   const [removing, setRemoving] = useState<Member | null>(null);
   const all = members.data ?? [];
   const normalized = search.trim().toLocaleLowerCase('vi');
@@ -56,11 +58,19 @@ function MemberScreen({ actor, project, canAdd, canRemove, readFailed, reloadPro
         description="Vai trò thành viên áp dụng trong dự án này."
         breadcrumbs={[{ label: 'Dự án', href: '/app/projects' }, { label: project.projectName, href: '/app/projects/' + projectId + '/overview' }, { label: 'Thành viên' }]}
         actions={canAdd && (
-          <Btn variant="primary" disabled={!ready || write.busy || write.uncertain || !roles.data.length} onClick={() => { write.clearError(); setAdding(true); }}>
-            <Plus /> Thêm thành viên
+          <Btn variant="primary" disabled={!ready || write.busy || write.uncertain || !roles.data.length} onClick={() => { setInvitations(true); setAdding(true); }}>
+            <Plus /> Mời thành viên
           </Btn>
         )}
       />
+      {canAdd && <div className="flex gap-2" aria-label="Quản lý thành viên">
+        <Btn aria-pressed={!invitations} onClick={() => setInvitations(false)}>Thành viên</Btn>
+        <Btn aria-pressed={invitations} onClick={() => setInvitations(true)}>Lời mời</Btn>
+      </div>}
+      {(canAdd || readFailed) && <ProjectInvitations actor={actor} projectId={projectId} roles={roles.data ?? []}
+        hasManager={managerId !== undefined} canWrite={canAdd} visible={invitations && canAdd}
+        create={adding} close={() => setAdding(false)} reloadProject={reloadProject} />}
+      {(!invitations || !canAdd) && <>
       {project.leader && (
         <p className="flex items-center gap-2 text-sm">
           <Crown size={16} aria-hidden /> Trưởng dự án <strong>{project.leader.userName}</strong>
@@ -129,14 +139,10 @@ function MemberScreen({ actor, project, canAdd, canRemove, readFailed, reloadPro
           )}
         </>
       )}
+      </>}
       {write.busy && <p role="status">Đang cập nhật thành viên…</p>}
       {write.uncertain&&<InlineAlert tone="warning">Kết quả đã lưu nhưng chưa đồng bộ. <Btn onClick={()=>window.location.reload()}>Tải lại trang</Btn></InlineAlert>}
       {write.error && !adding && !removing && <InlineAlert tone="error">{write.error}</InlineAlert>}
-      {adding && (canAdd || readFailed) && roles.data && (
-        <AddMemberDialog actor={actor} projectId={projectId} roles={roles.data} hasManager={managerId !== undefined}
-          busy={write.busy} blocked={!canAdd||readFailed||write.uncertain} readFailed={readFailed} reloadProject={reloadProject} error={write.error} close={closeDialogs}
-          add={(userId, roleId) => void write.submit({ kind: 'add', userId, roleId }, closeDialogs)} />
-      )}
       {removing && (canRemove || readFailed) && (
         <Modal open title={'Gỡ ' + displayName(removing) + ' khỏi dự án?'}
           onOpenChange={(open) => { if (!open && !write.busy) closeDialogs(); }}
@@ -150,58 +156,5 @@ function MemberScreen({ actor, project, canAdd, canRemove, readFailed, reloadPro
         </Modal>
       )}
     </div>
-  );
-}
-
-function AddMemberDialog({ actor, projectId, roles, hasManager, busy, blocked, readFailed, reloadProject, error, close, add }: {
-  actor: number; projectId: number; roles: ProjectRole[]; hasManager: boolean; busy: boolean;
-  blocked: boolean; readFailed:boolean; reloadProject:()=>void; error: string | null; close: () => void; add: (userId: number, roleId: number) => void;
-}) {
-  const available = roles.filter((role) => !hasManager || role.roleName.toUpperCase() !== manager);
-  const [roleId, setRoleId] = useState(() => available.find((role) => role.roleName === 'DEVELOPER')?.role ?? available[0]?.role ?? 0);
-  const [email, setEmail] = useState('');
-  const [searched, setSearched] = useState<string | null>(null);
-  const candidate = useMemberCandidate(actor, projectId, searched);
-  const user = candidate.isSuccess && !candidate.isFetching ? candidate.data[0] : undefined;
-
-  function find(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const value = email.trim();
-    if (!isCandidateEmail(value) || busy) return;
-    if (value === searched) void candidate.refetch();
-    else setSearched(value);
-  }
-
-  return (
-    <Modal open title="Thêm thành viên" onOpenChange={(open) => { if (!open && !busy) close(); }}
-      footer={<>
-        <Btn variant="subtle" onClick={close} disabled={busy}>Hủy</Btn>
-        <Btn variant="primary" disabled={busy || blocked || !user || !available.some((role) => role.role === roleId)}
-          onClick={() => { if (user && !blocked) add(user.userId, roleId); }}>{busy ? 'Đang thêm…' : 'Thêm'}</Btn>
-      </>}>
-      <div className="space-y-4">
-        {/* Gate lỗi giữ nguyên form; nút retry nằm trong modal để người dùng không phải đóng và mất draft. */}
-        {readFailed&&<InlineAlert tone="warning">Chưa tải lại được quyền dự án. Bản nháp được giữ; tải lại trước khi thêm. <Btn disabled={busy} onClick={reloadProject}>Tải lại dự án</Btn></InlineAlert>}
-        <form className="space-y-2" onSubmit={find}>
-          <Field label="Email ứng viên" required>{(props) => (
-            <TextInput {...props} type="email" maxLength={100} required value={email} disabled={busy}
-              onChange={(event) => { setEmail(event.target.value); setSearched(null); }} />
-          )}</Field>
-          <Btn type="submit" disabled={busy || !isCandidateEmail(email.trim()) || candidate.isFetching}>Tìm ứng viên</Btn>
-        </form>
-        {candidate.isFetching && <p role="status">Đang tìm ứng viên…</p>}
-        {candidate.isError && <InlineAlert tone="error">{candidate.error.message}</InlineAlert>}
-        {candidate.isSuccess && !candidate.isFetching && (
-          <InlineAlert tone="info">{user ? 'Ứng viên: ' + (user.fullName || user.userName) : 'Không tìm thấy ứng viên đủ điều kiện.'}</InlineAlert>
-        )}
-        <Field label="Vai trò trong dự án" required>{(props) => (
-          <SelectInput {...props} value={roleId} onChange={(event) => setRoleId(Number(event.target.value))} disabled={busy || !available.length}>
-            {!available.length && <option value={0}>Chưa có vai trò khả dụng</option>}
-            {available.map((role) => <option key={role.role} value={role.role}>{role.roleName}</option>)}
-          </SelectInput>
-        )}</Field>
-        {error && <InlineAlert tone="error">{error}</InlineAlert>}
-      </div>
-    </Modal>
   );
 }
