@@ -5,6 +5,7 @@ export type PlanningIssue = {
   description: string;
   type: string;
   status: string;
+  statusCategory?: 'TO_DO' | 'IN_PROGRESS' | 'DONE';
   priority: string;
   points: number;
   assignee: string | null;

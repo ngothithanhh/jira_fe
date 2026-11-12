@@ -55,10 +55,18 @@ export function BacklogView({
   data,
   actions,
   busy = false,
+  permissions = { create: true, edit: true, sprint: true, rank: true },
+  onOpenIssue,
+  notify = true,
+  writeDisabled = false,
 }: {
   data: PlanningData;
   actions: PlanningActions;
   busy?: boolean;
+  permissions?: { create: boolean; edit: boolean; sprint: boolean; rank: boolean };
+  onOpenIssue?: (id: number) => void;
+  notify?: boolean;
+  writeDisabled?: boolean;
 }) {
   const [search, setSearch] = useState('');
   const [person, setPerson] = useState('');
@@ -92,12 +100,13 @@ export function BacklogView({
   ];
   // Controller chịu trách nhiệm rollback/refetch; view chỉ hiện lỗi để không báo thành công khi mutation thất bại.
   async function execute(action: () => Promise<void>, message?: string) {
+    if (writeDisabled) return false;
     try {
       await action();
-      if (message) toast.success(message);
+      if (message && notify) toast.success(message);
       return true;
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Không thể thực hiện thao tác. Vui lòng thử lại.');
+      if (notify) toast.error(error instanceof Error ? error.message : 'Không thể thực hiện thao tác. Vui lòng thử lại.');
       return false;
     }
   }
@@ -114,10 +123,12 @@ export function BacklogView({
     const from = groupId(result.source.droppableId),
       to = groupId(result.destination.droppableId);
     if (from !== to) {
+      if (!permissions.sprint) return;
       await execute(() => actions.moveIssue(Number(result.draggableId), from, to), 'Đã chuyển công việc');
       return;
     }
     if (result.source.index === result.destination.index) return;
+    if (from === null ? !permissions.rank : !permissions.sprint) return;
     const ids = [...(groups.find((group) => group.id === from)?.issues ?? [])].map((issue) => issue.id);
     const [id] = ids.splice(result.source.index, 1);
     ids.splice(result.destination.index, 0, id);
@@ -133,7 +144,7 @@ export function BacklogView({
             className={primaryAction}
             size="sm"
             onClick={() => setDialog('issue')}
-            disabled={busy || !data.issueTypes.length}
+            disabled={busy || !permissions.create || !data.issueTypes.length}
           >
             <Plus /> Tạo công việc
           </Button>
@@ -262,7 +273,7 @@ export function BacklogView({
                         className={secondaryAction}
                         size="xs"
                         onClick={() => setComplete(sprint)}
-                        disabled={busy}
+                        disabled={busy || !permissions.sprint}
                       >
                         Hoàn tất sprint
                       </Button>
@@ -273,7 +284,7 @@ export function BacklogView({
                         className={secondaryAction}
                         size="xs"
                         disabled={
-                          busy || !group.issues.length || data.sprints.some((item) => item.state === 'ACTIVE')
+                          busy || !permissions.sprint || !group.issues.length || data.sprints.some((item) => item.state === 'ACTIVE')
                         }
                         title={
                           data.sprints.some((item) => item.state === 'ACTIVE')
@@ -295,7 +306,7 @@ export function BacklogView({
                         {sprint.goal}
                       </p>
                     )}
-                    <Droppable droppableId={key} isDropDisabled={filtered || busy}>
+                    <Droppable droppableId={key} isDropDisabled={filtered || busy || (group.id === null ? !permissions.rank && !permissions.sprint : !permissions.sprint)}>
                       {(provided, snapshot) => (
                         <div
                           ref={provided.innerRef}
@@ -311,7 +322,7 @@ export function BacklogView({
                               key={issue.id}
                               draggableId={String(issue.id)}
                               index={index}
-                              isDragDisabled={filtered || busy}
+                              isDragDisabled={filtered || busy || (group.id === null ? !permissions.rank && !permissions.sprint : !permissions.sprint)}
                               disableInteractiveElementBlocking
                             >
                               {(drag, dragSnapshot) => (
@@ -341,7 +352,7 @@ export function BacklogView({
                                   <IssueType type={issue.type} />
                                   <button
                                     className="min-w-0 flex-1 text-left sm:flex sm:items-center sm:gap-3"
-                                    onClick={() => setSelectedId(issue.id)}
+                                    onClick={() => onOpenIssue ? onOpenIssue(issue.id) : setSelectedId(issue.id)}
                                   >
                                     <span
                                       className={cn(
@@ -397,11 +408,12 @@ export function BacklogView({
                                       </button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="end">
-                                      <DropdownMenuItem onSelect={() => setSelectedId(issue.id)}>
+                                      <DropdownMenuItem onSelect={() => onOpenIssue ? onOpenIssue(issue.id) : setSelectedId(issue.id)}>
                                         Xem chi tiết
                                       </DropdownMenuItem>
                                       {group.id !== null ? (
                                         <DropdownMenuItem
+                                          disabled={!permissions.sprint || busy}
                                           onSelect={() =>
                                             execute(
                                               () => actions.moveIssue(issue.id, group.id, null),
@@ -414,6 +426,7 @@ export function BacklogView({
                                       ) : (
                                         data.sprints.map((target) => (
                                           <DropdownMenuItem
+                                            disabled={!permissions.sprint || busy}
                                             key={target.id}
                                             onSelect={() =>
                                               execute(
@@ -449,7 +462,7 @@ export function BacklogView({
                     </Droppable>
                     {group.id === null && (
                       <button
-                        disabled={busy || !data.issueTypes.length}
+                        disabled={busy || !permissions.create || !data.issueTypes.length}
                         className="flex w-full items-center gap-2 px-8 pb-3 pt-1 text-[13px] text-[#6b778c] hover:text-[#0052cc] disabled:opacity-40"
                         onClick={() => setDialog('issue')}
                       >
@@ -482,7 +495,7 @@ export function BacklogView({
           className={secondaryAction}
           size="sm"
           onClick={() => setDialog('sprint')}
-          disabled={busy}
+          disabled={busy || !permissions.sprint}
         >
           Tạo sprint
         </Button>
@@ -500,7 +513,7 @@ export function BacklogView({
           <DialogHeader>
             <DialogTitle>{dialog === 'sprint' ? 'Tạo sprint mới' : 'Tạo công việc'}</DialogTitle>
             <DialogDescription>
-              {dialog === 'sprint'
+              {writeDisabled ? 'Dữ liệu chưa tải được. Đóng hộp thoại và thử tải lại.' : dialog === 'sprint'
                 ? 'Nhập tên, mục tiêu và thời gian của sprint.'
                 : 'Công việc mới sẽ được thêm vào backlog của dự án.'}
             </DialogDescription>
@@ -511,6 +524,7 @@ export function BacklogView({
               mode={dialog}
               data={data}
               busy={busy}
+              writeDisabled={writeDisabled}
               onCancel={() => setDialog(null)}
               onSubmit={async (form) => {
                 const success =
@@ -552,7 +566,7 @@ export function BacklogView({
         >
           <DialogHeader>
             <DialogTitle>Hoàn tất {complete?.name}</DialogTitle>
-            <DialogDescription>Công việc đã hoàn thành được giữ lại trong lịch sử sprint.</DialogDescription>
+            <DialogDescription>{writeDisabled ? 'Dữ liệu chưa tải được. Đóng hộp thoại và thử tải lại.' : 'Công việc đã hoàn thành được giữ lại trong lịch sử sprint.'}</DialogDescription>
           </DialogHeader>
           <form
             onSubmit={async (event) => {
@@ -595,7 +609,7 @@ export function BacklogView({
               >
                 Hủy
               </Button>
-              <Button className={primaryAction} disabled={busy}>
+              <Button className={primaryAction} disabled={busy || writeDisabled}>
                 Hoàn tất sprint
               </Button>
             </DialogFooter>
@@ -641,12 +655,14 @@ function PlanningForm({
   mode,
   data,
   busy,
+  writeDisabled,
   onSubmit,
   onCancel,
 }: {
   mode: 'sprint' | 'issue';
   data: PlanningData;
   busy: boolean;
+  writeDisabled: boolean;
   onSubmit: (form: FormData) => Promise<void>;
   onCancel: () => void;
 }) {
@@ -730,7 +746,7 @@ function PlanningForm({
         >
           Hủy
         </Button>
-        <Button className={primaryAction} disabled={busy || (mode === 'issue' && !data.issueTypes.length)}>
+        <Button className={primaryAction} disabled={busy || writeDisabled || (mode === 'issue' && !data.issueTypes.length)}>
           {busy ? 'Đang lưu…' : mode === 'sprint' ? 'Tạo sprint' : 'Tạo công việc'}
         </Button>
       </DialogFooter>

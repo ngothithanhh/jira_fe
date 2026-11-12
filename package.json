@@ -8,13 +8,14 @@
     "start": "next start",
     "test:planning": "node --experimental-strip-types --test tests/planning-model.test.mjs",
     "test:ui-demo": "node --experimental-strip-types --test tests/ui-demo-model.test.mjs",
-    "test:connected": "node --experimental-strip-types --test tests/connected-server.test.mjs tests/connected-client.test.mjs tests/connected-projects.test.mjs",
+    "test:connected": "node --experimental-strip-types --test tests/connected-server.test.mjs tests/connected-client.test.mjs tests/connected-projects.test.mjs tests/connected-issues.test.mjs",
     "test:connected:browser": "node tests/connected-browser.smoke.cjs",
     "test:projects:browser": "node tests/connected-projects.browser.cjs",
     "lint": "next lint && eslint .",
     "lint:fix": "next lint --fix && eslint . --fix",
     "format": "prettier --check . --config .prettierrc.mjs",
-    "format:fix": "prettier --write . --config .prettierrc.mjs"
+    "format:fix": "prettier --write . --config .prettierrc.mjs",
+    "test:issues:browser": "node tests/connected-issues.browser.cjs"
   },
   "author": {
     "name": "Sanidhya Kumar Verma",

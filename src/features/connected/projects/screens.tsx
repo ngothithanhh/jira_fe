@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { useParams, usePathname, useRouter } from 'next/navigation';
 import { useMutation } from '@tanstack/react-query';
-import { Home, MoreHorizontal, Settings2 } from 'lucide-react';
+import { Home, MoreHorizontal, Settings2, ListChecks, ListTodo } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Btn, Card, FONT, InlineAlert, PageHeading, StateView } from '@/components/project-ui/kit';
 import { ProjectFields, ProjectsListView, type ProjectDraft, type ProjectListItem } from '@/components/project-ui/project-views';
@@ -50,8 +50,10 @@ export function ConnectedProjectGate({ children }: { children: ReactNode }) {
   const project = useConnectedProject(id);
   if (id === null) return <StateView kind="not-found" title="Không tìm thấy dự án" />;
   if (project.isPending) return <p role="status" className="text-sm text-[#6b778c]">Đang tải dự án…</p>;
-  if (project.isError) return <ProjectError error={project.error} retry={() => void project.refetch()} />;
-  return <div key={id}>{children}</div>;
+  // Lỗi quyền/không tồn tại phải dừng. Lỗi mạng khi đã có dữ liệu giữ cây form để không làm mất draft issue.
+  const denied = project.error instanceof ConnectedError && [401,403,404].includes(project.error.status);
+  if (project.isError && (!project.data || denied)) return <ProjectError error={project.error} retry={() => void project.refetch()} />;
+  return <div key={id}>{project.isError && <div className="mb-4"><ProjectError error={project.error} retry={() => void project.refetch()} /></div>}{children}</div>;
 }
 
 /** Sidebar chỉ có link đã nối; dùng cùng cache project/context với page, không đọc fixture hoặc gọi API dư. */
@@ -61,7 +63,7 @@ export function ProjectNavigation({ id }: { id: number }) {
   if (!query.data) return null;
   return <>
     <p className="mt-3 w-full truncate px-3 pb-1 text-xs font-semibold text-[#6b778c]" title={query.data.project.projectName}>{query.data.project.projectName}</p>
-    {[{ section: 'overview', label: 'Tổng quan', Icon: Home }, { section: 'settings', label: 'Cài đặt', Icon: Settings2 }].map(({ section, label, Icon }) => {
+    {[{ section: 'overview', label: 'Tổng quan', Icon: Home }, { section: 'issues', label: 'Công việc', Icon: ListChecks }, { section: 'backlog', label: 'Backlog', Icon: ListTodo }, { section: 'settings', label: 'Cài đặt', Icon: Settings2 }].map(({ section, label, Icon }) => {
       const href = `/app/projects/${id}/${section}`;
       return <Link key={section} href={href} aria-current={path === href ? 'page' : undefined} className={`flex items-center gap-2 rounded-[3px] px-3 py-2 text-sm ${path === href ? 'bg-[#e9f2ff] font-medium text-[#0052cc]' : 'hover:bg-[#ebecf0]'}`}><Icon size={18} />{label}</Link>;
     })}

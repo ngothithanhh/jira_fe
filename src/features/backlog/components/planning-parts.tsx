@@ -10,7 +10,8 @@ export const primaryAction =
   'rounded-[3px] border-transparent bg-[#0052cc] bg-none font-medium shadow-none hover:bg-[#0065ff]';
 export const secondaryAction =
   'rounded-[3px] border-transparent bg-[#ebecf0] font-medium text-[#42526e] shadow-none hover:bg-[#dfe1e6]';
-export const done = (issue: PlanningIssue) => /^(done|completed|hoàn thành|đã hoàn thành)$/i.test(issue.status);
+// API thật truyền category; các preview cũ chưa có category tiếp tục dùng nhãn mẫu.
+export const done = (issue: PlanningIssue) => issue.statusCategory ? issue.statusCategory === 'DONE' : /^(done|completed|hoàn thành|đã hoàn thành)$/i.test(issue.status);
 
 /** Avatar chữ dùng tên từ API; null hiển thị biểu tượng chưa phân công, không gán user giả cho issue thật. */
 export function Person({ name, small = false }: { name: string | null; small?: boolean }) {
