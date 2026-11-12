@@ -8,6 +8,8 @@ import { configurationRoute,configurationBody,type ConfigurationAction } from '.
 import {adminUserRoute,adminUserBody,type AdminUserAction} from './admin-users/contract.ts';
 import {adminRoleRoute,roleBody} from './admin-roles/contract.ts';
 
+import {auditRoute} from './audit/contract.ts';
+
 const ACCESS = 'jira_access';
 const REFRESH = 'jira_refresh';
 const NO_STORE = { 'Cache-Control': 'no-store, private', Vary: 'Cookie' };
@@ -75,6 +77,8 @@ function validRouteId(id: string | undefined) {
  */
 export async function backendRoute(request: Request, path: string[]) {
   const route = path.join('/');
+  let audit:ReturnType<typeof auditRoute>;
+  try{audit=auditRoute(route,request.method,new URL(request.url).searchParams);}catch(error){return failure(400,(error as Error).message);}
   let adminRole:ReturnType<typeof adminRoleRoute>;
   try{adminRole=adminRoleRoute(route,request.method,new URL(request.url).searchParams);}catch(error){return failure(400,(error as Error).message);}
   // API issue chỉ mở theo whitelist riêng, kiểm query trước khi đọc cookie hay gọi Spring Boot.
@@ -105,14 +109,14 @@ export async function backendRoute(request: Request, path: string[]) {
   const accountWrite = request.method === 'PATCH' && route === 'account/profile' ? 'profile'
     : request.method === 'POST' && route === 'account/password' ? 'password' : null;
   // Thêm tài khoản vào các API đã nối; giữ nguyên quyền truy cập project, board, thành viên, thông báo và báo cáo.
-  const protectedAction = readAction || notificationMutation || projectWrite || !!issue || !!board || !!member || !!accountWrite || !!collaboration || !!configuration || !!adminUser || !!adminRole;
+  const protectedAction = readAction || notificationMutation || projectWrite || !!issue || !!board || !!member || !!accountWrite || !!collaboration || !!configuration || !!adminUser || !!adminRole || !!audit;
   if (!authAction && !protectedAction) return failure(404, 'Chức năng chưa được kết nối.');
   // Tất cả mutation dùng cookie đều kiểm Origin; public auth vẫn không nhận Bearer cũ.
   if ((authAction || notificationMutation || projectWrite || accountWrite || issue?.write || board?.write || collaboration?.write || configuration?.write || adminUser?.write || adminRole?.write || (member && member !== 'roles')) && !trustedOrigin(request)) return failure(403, 'Nguồn yêu cầu không hợp lệ.');
 
   // Chỉ chuyển query projectId hợp lệ; không chuyển actorId hoặc URL upstream từ người gọi.
-  let suffix = issue?.suffix || board?.suffix || collaboration?.suffix || configuration?.suffix || adminUser?.suffix || '';
-  if (!issue && !board && !collaboration && !configuration && !adminUser && !adminRole && !notificationRead && !notificationMutation && !reportRead && route !== 'account/context' && new URL(request.url).searchParams.size) return failure(400, 'Tham số không hợp lệ.');
+  let suffix = audit?.suffix || issue?.suffix || board?.suffix || collaboration?.suffix || configuration?.suffix || adminUser?.suffix || '';
+  if (!audit && !issue && !board && !collaboration && !configuration && !adminUser && !adminRole && !notificationRead && !notificationMutation && !reportRead && route !== 'account/context' && new URL(request.url).searchParams.size) return failure(400, 'Tham số không hợp lệ.');
   if (route === 'account/context') {
     const query = new URL(request.url).searchParams;
     if ([...query.keys()].some((key) => key !== 'projectId')) return failure(400, 'Tham số không hợp lệ.');

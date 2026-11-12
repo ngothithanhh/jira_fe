@@ -64,7 +64,7 @@ export function ProjectNavigation({ id }: { id: number }) {
   if (!query.data) return null;
   return <>
     <p className="mt-3 w-full truncate px-3 pb-1 text-xs font-semibold text-[#6b778c]" title={query.data.project.projectName}>{query.data.project.projectName}</p>
-    {[{ section: 'overview', label: 'Tổng quan', Icon: Home }, { section: 'issues', label: 'Công việc', Icon: ListChecks }, { section: 'backlog', label: 'Backlog', Icon: ListTodo }, { section: 'board', label: 'Scrum board', Icon: Columns3 }, { section: 'members', label: 'Thành viên', Icon: Users }, { section: 'reports', label: 'Báo cáo Scrum', Icon: ChartNoAxesCombined }, { section: 'settings', label: 'Cài đặt', Icon: Settings2 }].map(({ section, label, Icon }) => {
+    {[{ section: 'overview', label: 'Tổng quan', Icon: Home }, { section: 'issues', label: 'Công việc', Icon: ListChecks }, { section: 'backlog', label: 'Backlog', Icon: ListTodo }, { section: 'board', label: 'Scrum board', Icon: Columns3 }, { section: 'members', label: 'Thành viên', Icon: Users }, { section: 'reports', label: 'Báo cáo Scrum', Icon: ChartNoAxesCombined }, { section: 'settings', label: 'Cài đặt', Icon: Settings2 }, ...(query.data.context.systemAdmin||query.data.context.projectPermissions.includes('UPDATE_PROJECT')?[{section:'audit',label:'Nhật ký',Icon:ListChecks}]:[])].map(({ section, label, Icon }) => {
       const href = `/app/projects/${id}/${section}`;
       return <Link key={section} href={href} aria-current={path === href ? 'page' : undefined} className={`flex items-center gap-2 rounded-[3px] px-3 py-2 text-sm ${path === href ? 'bg-[#e9f2ff] font-medium text-[#0052cc]' : 'hover:bg-[#ebecf0]'}`}><Icon size={18} />{label}</Link>;
     })}
