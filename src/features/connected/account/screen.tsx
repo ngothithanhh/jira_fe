@@ -1,12 +1,15 @@
 'use client';
 
-import { useRef, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
+import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Avatar, Btn, Card, Field, InlineAlert, PageHeading, TextInput } from '@/components/project-ui/kit';
 import { changeConnectedPassword, completeConnectedMutation, connectedMutation, hasPendingLogout } from '../client';
 import { useProjectMutationScope } from '../projects/queries';
 import { useSession, type AccountContext } from '../session';
+import { AccountEmailVerification } from '../registration/account-screen';
+import { invitationId } from '../invitations/contract';
 import { validNewPassword, validOldPassword, type PasswordDraft, type ProfileDraft } from './contract';
 
 const sessionKey = ['connected', 'session'] as const;
@@ -32,6 +35,12 @@ function AccountForm({ context }: { context: AccountContext }) {
   const [profileUncertain, setProfileUncertain] = useState(false);
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<PasswordField, string>>>({});
+  const [invitationReturn, setInvitationReturn] = useState('');
+  useEffect(() => {
+    const value = new URLSearchParams(window.location.search).get('returnTo');
+    const match = /^\/app\/(?:account\/project-invitations|invitations)\/([^/]+)$/.exec(value ?? '');
+    if (match && invitationId(match[1])) setInvitationReturn(value ?? '');
+  }, []);
   const saved = { userName: user.userName, fullName: user.fullName ?? '' };
   const profile = draft ?? saved;
   const dirty = profile.userName.trim() !== saved.userName || profile.fullName !== saved.fullName;
@@ -178,6 +187,9 @@ function AccountForm({ context }: { context: AccountContext }) {
           </form>
         </Card>
       </div>
+      <AccountEmailVerification userId={user.userId} />
+      {invitationReturn && <Link className="block text-[#0052cc]" href={invitationReturn}>Quay lại lời mời</Link>}
+      <Link className="block text-[#0052cc]" href="/app/account/project-invitations">Lời mời dự án</Link>
     </div>
   );
 }

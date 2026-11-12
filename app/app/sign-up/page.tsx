@@ -1,3 +1,3 @@
 import { Suspense } from 'react';
-import { ConnectedAuthScreen } from '@/features/connected/auth-screen';
-export default function Page() { return <Suspense><ConnectedAuthScreen register /></Suspense>; }
+import { ConnectedRegistrationScreen } from '@/features/connected/registration/screen';
+export default function Page() { return <Suspense><ConnectedRegistrationScreen /></Suspense>; }

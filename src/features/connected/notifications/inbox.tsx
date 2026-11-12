@@ -1,12 +1,14 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
 import { Bell, MailOpen, Trash2 } from 'lucide-react';
 import { Btn, EmptyState, formatDate, InlineAlert, PageHeading, TabBar } from '@/components/project-ui/kit';
 import { completeConnectedMutation, hasPendingLogout } from '../client';
 import { useProjectMutationScope } from '../projects/queries';
 import { useSession, type AccountContext } from '../session';
+import { invitationId, invitePath } from '../invitations/contract';
 import { changeNotification, notificationKey, useNotificationCount, useNotificationList, type NotificationAction } from './queries';
 
 const typeLabels: Record<string, string> = {
@@ -107,6 +109,7 @@ function Inbox({ userId }: { userId: number }) {
                 </div>
                 <p className={`break-words text-sm ${item.read ? '' : 'font-semibold'}`}>{item.message || 'Thông báo không có nội dung'}</p>
                 {item.actorName && <p className="break-words text-xs text-[#42526e]">{item.actorName}</p>}
+                {invitationId(item.invitationId) && <Link className="block text-sm text-[#0052cc]" href={invitePath(item.invitationId, false)}>Xem lời mời</Link>}
               </div>
               {!item.read && (
                 <Btn variant="subtle" disabled={pending||uncertain} onClick={() => void submit({ kind: 'read', id: item.notificationId })}>

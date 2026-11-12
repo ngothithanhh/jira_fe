@@ -8,6 +8,7 @@ export type NotificationItem = {
   notificationId: number;
   userId: number;
   issueId: number | null;
+  invitationId?: string | null;
   notificationType: string | null;
   actorId: number | null;
   actorName: string | null;
