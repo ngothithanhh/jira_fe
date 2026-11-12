@@ -17,7 +17,8 @@
     "format:fix": "prettier --write . --config .prettierrc.mjs",
     "test:issues:browser": "node tests/connected-issues.browser.cjs",
     "test:board:browser": "node tests/connected-board.browser.cjs",
-    "test:members:browser": "node tests/connected-members.browser.cjs"
+    "test:members:browser": "node tests/connected-members.browser.cjs",
+    "test:notifications-reports:browser": "node tests/connected-notifications-reports.browser.cjs"
   },
   "author": {
     "name": "Sanidhya Kumar Verma",

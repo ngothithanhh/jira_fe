@@ -72,7 +72,8 @@ const check = (name) => { passed.push(name); console.log('PASS: ' + name); };
     await second.getByRole('button', { name: 'Đăng nhập', exact: true }).click();
     await second.waitForURL('**/app/projects');
     await page.getByRole('heading', { name: pm.fullName, exact: true }).waitFor();
-    await page.unroute('**/api/backend/account/context');
+    // Bell cũng đọc context; chờ toàn bộ handler đang trì hoãn xong trước khi bỏ route để không continue request đã bị cleanup.
+    await page.unrouteAll({behavior:'wait'});
     check('account switch hides the old identity while replacement context is loading');
     let refreshes = 0;
     context.on('request', (request) => { if (request.url().endsWith('/api/backend/auth/refresh')) refreshes++; });

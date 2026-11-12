@@ -7,6 +7,7 @@ import { ClipboardList, FolderKanban, LogOut, UserRound } from 'lucide-react';
 import { toast } from 'sonner';
 import { Btn, FONT, InlineAlert } from '@/components/project-ui/kit';
 import { announceSession, connectedRequest, markLogoutPending, withSessionLock } from './client';
+import { NotificationBell } from './notifications/notification-bell';
 import { useSession } from './session';
 import { ProjectNavigation } from './projects/screens';
 import { projectIdFromRoute } from './projects/model';
@@ -39,7 +40,11 @@ export function ConnectedShell({ children }: { children: ReactNode }) {
   return <div className="min-h-screen bg-white text-[#172b4d]" style={FONT}>
     <header className="flex h-14 items-center justify-between border-b border-[#dfe1e6] px-4 sm:px-6">
       <Link href="/app/projects" className="flex items-center gap-2 text-lg font-semibold"><ClipboardList className="text-[#0052cc]" />Quản lý dự án</Link>
-      <div className="flex items-center gap-3"><Link href="/app/account" className="hidden text-sm hover:underline sm:inline">{user.fullName || user.userName}</Link><Btn variant="subtle" onClick={logout} disabled={pending}><LogOut />{pending ? 'Đang thoát…' : 'Đăng xuất'}</Btn></div>
+      <div className="flex items-center gap-3">
+        <NotificationBell userId={user.userId} />
+        <Link href="/app/account" className="hidden text-sm hover:underline sm:inline">{user.fullName || user.userName}</Link>
+        <Btn variant="subtle" onClick={logout} disabled={pending}><LogOut />{pending ? 'Đang thoát…' : 'Đăng xuất'}</Btn>
+      </div>
     </header>
     <div className="flex min-h-[calc(100vh-56px)] flex-col sm:flex-row">
       <nav aria-label="Điều hướng chính" className="flex shrink-0 flex-wrap gap-1 border-b border-[#dfe1e6] bg-[#fafbfc] p-3 sm:w-60 sm:flex-col sm:flex-nowrap sm:border-b-0 sm:border-r">

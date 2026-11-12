@@ -96,9 +96,9 @@ export function useIssueWrite(projectId: number) {
   const [error,setError] = useState('');
   const refresh = async () => {
     // Issue/sprint/config thay đổi phải làm mới cả board, kể cả khi người dùng đang mở nó ở màn khác cùng cache.
-    await Promise.all(['issues','issue','planning','projects','project','board','board-catalog'].map((domain) => client.invalidateQueries({
+    await Promise.all(['issues','issue','planning','projects','project','board','board-catalog','reports','notifications'].map((domain) => client.invalidateQueries({
       predicate: (q) => q.queryKey[0] === 'connected' && q.queryKey[1] === domain && q.queryKey[2] === actor
-        && (domain === 'projects' || q.queryKey[3] === projectId),
+        && (domain === 'projects' || domain === 'notifications' || q.queryKey[3] === projectId),
     })));
   };
   async function run<T>(path: string, init: RequestInit, message: string, complete?: (data: T) => void, canDispatch: () => boolean = () => true): Promise<T> {

@@ -94,6 +94,8 @@ async function setup(){
     check('latest write guard is rechecked after delayed auth and before dispatch');
 
     // CreateBoard đã mở phải khóa submit khi gate project refetch lỗi, nhưng Hủy vẫn dùng được.
+    // Chờ các refetch từ nhánh auth409 trước đó kết thúc; focus khi query còn in-flight sẽ dùng lại request cũ ngoài route503.
+    await page.waitForLoadState('networkidle');
     await page.getByRole('button',{name:'Tạo board',exact:true}).click();await page.getByRole('dialog',{name:'Tạo Scrum board',exact:true}).getByLabel(/^Tên board/).fill(tag+' Không gửi khi gate lỗi');
     await page.route(`**/api/backend/projects/${shop.id}`,route=>route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({message:'Lỗi gate thử nghiệm'})}));
     await refocus(page);await page.getByText('Lỗi gate thử nghiệm',{exact:true}).waitFor();
