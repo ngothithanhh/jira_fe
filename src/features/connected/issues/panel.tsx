@@ -63,7 +63,7 @@ export function CreateIssue({ projectId, onClose }: { projectId: number; onClose
 }
 
 /** Panel chỉ hiện dữ liệu thật khi detail/reference đều đọc thành công; 403/404 không dựng form trống giả. */
-export function IssuePanel({ projectId, issueId, onClose }: { projectId: number; issueId: number; onClose: () => void }) {
+export function IssuePanel({ projectId, issueId, onClose, readOnly = false }: { projectId: number; issueId: number; onClose: () => void; readOnly?: boolean }) {
   const detail = useIssueDetail(projectId,issueId);
   const refs = useIssueReferences(projectId);
   const [busy,setBusy] = useState(false);
@@ -72,7 +72,7 @@ export function IssuePanel({ projectId, issueId, onClose }: { projectId: number;
     <SheetHeader><SheetTitle>{detail.data?.issueKey || 'Chi tiết công việc'}</SheetTitle><SheetDescription>Thông tin công việc trong dự án.</SheetDescription></SheetHeader>
     {error && <div className="mt-5 space-y-3"><InlineAlert tone="error">{error.message} Bản nháp được giữ lại; tải lại dữ liệu trước khi lưu tiếp.</InlineAlert><Btn disabled={busy} onClick={() => { void detail.refetch(); void refs.refetch(); }}>Tải lại dữ liệu</Btn></div>}
     {/* Lỗi refetch không unmount editor: giữ draft và scope completion của DELETE đã được BE xác nhận. */}
-    {detail.data && refs.data ? <IssueEditor key={issueId} projectId={projectId} issue={detail.data} refs={refs.data} onClose={onClose} onBusy={setBusy} readFailed={!!error} reload={() => { void detail.refetch(); void refs.refetch(); }} /> : !error && <p role="status" className="py-8 text-sm">Đang tải công việc…</p>}
+    {detail.data && refs.data ? <IssueEditor key={issueId} projectId={projectId} issue={detail.data} refs={refs.data} onClose={onClose} onBusy={setBusy} readFailed={!!error || readOnly} reload={() => { void detail.refetch(); void refs.refetch(); }} /> : !error && <p role="status" className="py-8 text-sm">Đang tải công việc…</p>}
   </SheetContent></Sheet>;
 }
 

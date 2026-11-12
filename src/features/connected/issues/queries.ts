@@ -95,17 +95,20 @@ export function useIssueWrite(projectId: number) {
   const [busy,setBusy] = useState(false);
   const [error,setError] = useState('');
   const refresh = async () => {
-    await Promise.all(['issues','issue','planning','projects','project'].map((domain) => client.invalidateQueries({
+    // Issue/sprint/config thay đổi phải làm mới cả board, kể cả khi người dùng đang mở nó ở màn khác cùng cache.
+    await Promise.all(['issues','issue','planning','projects','project','board','board-catalog'].map((domain) => client.invalidateQueries({
       predicate: (q) => q.queryKey[0] === 'connected' && q.queryKey[1] === domain && q.queryKey[2] === actor
         && (domain === 'projects' || q.queryKey[3] === projectId),
     })));
   };
-  async function run<T>(path: string, init: RequestInit, message: string, complete?: (data: T) => void): Promise<T> {
+  async function run<T>(path: string, init: RequestInit, message: string, complete?: (data: T) => void, canDispatch: () => boolean = () => true): Promise<T> {
     if (locked.current || !actor) throw new ConnectedError(409,'Một thao tác đang được xử lý.');
     locked.current = true; setBusy(true); setError('');
     const current = capture();
     try {
-      const result = await connectedMutation<T>(path,actor,init,current);
+      // Điều kiện riêng của board được kiểm lại sau khi chờ khóa/auth, ngay trước gửi.
+      // Không dùng nó để bỏ completion sau commit: dữ liệu refetch lỗi sau ghi vẫn cần invalidate và báo kết quả đã xác nhận.
+      const result = await connectedMutation<T>(path,actor,init,() => current() && canDispatch());
       if (!current()) throw new ConnectedError(409,'Phiên đã thay đổi.');
       // Response ghi issue đã được BE commit là snapshot mới nhất đã xác nhận; refetch lỗi vẫn giữ dữ liệu này.
       const saved = result as IssueDto | undefined;

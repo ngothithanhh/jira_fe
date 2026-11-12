@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server.js';
 import { issueBody, issueRoute, type IssueRoute } from './issues/contract.ts';
+import { boardBody, boardRoute, type BoardAction } from './board/contract.ts';
 
 const ACCESS = 'jira_access';
 const REFRESH = 'jira_refresh';
@@ -65,21 +66,22 @@ export async function backendRoute(request: Request, path: string[]) {
   const route = path.join('/');
   // API issue chỉ mở theo whitelist riêng, kiểm query trước khi đọc cookie hay gọi Spring Boot.
   let issue: IssueRoute | null;
-  try { issue = issueRoute(route, request.method, new URL(request.url).searchParams); }
+  let board: BoardAction | null;
+  try { issue = issueRoute(route, request.method, new URL(request.url).searchParams); board = boardRoute(route, request.method, new URL(request.url).searchParams); }
   catch (error) { return failure(400, (error as Error).message); }
   const authAction = request.method === 'POST' && /^auth\/(login|register|refresh|logout)$/.test(route);
   const projectItem = /^projects\/([1-9]\d*)$/.exec(route);
   if (projectItem && Number(projectItem[1]) > 2147483647) return failure(400, 'ID dự án không hợp lệ.');
   const readAction = request.method === 'GET' && (['auth/me', 'account/context', 'projects/getList'].includes(route) || !!projectItem);
   const projectWrite = (request.method === 'POST' && route === 'projects/create') || (!!projectItem && ['PATCH', 'DELETE'].includes(request.method));
-  const protectedAction = readAction || projectWrite || !!issue;
+  const protectedAction = readAction || projectWrite || !!issue || !!board;
   if (!authAction && !protectedAction) return failure(404, 'Chức năng chưa được kết nối.');
   // Tất cả mutation dùng cookie đều kiểm Origin; public auth vẫn không nhận Bearer cũ.
-  if ((authAction || projectWrite || issue?.write) && !trustedOrigin(request)) return failure(403, 'Nguồn yêu cầu không hợp lệ.');
+  if ((authAction || projectWrite || issue?.write || board?.write) && !trustedOrigin(request)) return failure(403, 'Nguồn yêu cầu không hợp lệ.');
 
   // Chỉ chuyển query projectId hợp lệ; không chuyển actorId hoặc URL upstream từ người gọi.
-  let suffix = issue?.suffix || '';
-  if (!issue && route !== 'account/context' && new URL(request.url).searchParams.size) return failure(400, 'Tham số không hợp lệ.');
+  let suffix = issue?.suffix || board?.suffix || '';
+  if (!issue && !board && route !== 'account/context' && new URL(request.url).searchParams.size) return failure(400, 'Tham số không hợp lệ.');
   if (route === 'account/context') {
     const query = new URL(request.url).searchParams;
     if ([...query.keys()].some((key) => key !== 'projectId')) return failure(400, 'Tham số không hợp lệ.');
@@ -133,6 +135,13 @@ export async function backendRoute(request: Request, path: string[]) {
     catch (error) { return failure(400, error instanceof SyntaxError ? 'Dữ liệu không hợp lệ.' : (error as Error).message); }
   }
 
+  // Route board dùng contract riêng; mọi thao tác vẫn dùng chung cookie, Origin và khóa phiên của connected.
+  if (board?.write && !['delete','unmap'].includes(board.kind)) {
+    const raw=await request.text();
+    if(raw.length>16384)return failure(413,'Dữ liệu board quá dài.');
+    try {body=boardBody(board.kind,JSON.parse(raw));}
+    catch(error){return failure(400,error instanceof SyntaxError?'Dữ liệu không hợp lệ.':(error as Error).message);}
+  }
   try {
     // Địa chỉ chỉ lấy từ cấu hình server, không dùng NEXT_PUBLIC_API_URL và không follow redirect mang Bearer ra nơi khác.
     const base = process.env.BACKEND_API_URL || 'http://127.0.0.1:8080/api';
@@ -155,6 +164,8 @@ export async function backendRoute(request: Request, path: string[]) {
       if (upstream.status === 409 && projectItem && request.method === 'DELETE') message = 'Dự án còn dữ liệu liên kết nên chưa thể xóa.';
       if (upstream.status === 409 && issue) message = 'Dữ liệu đã thay đổi hoặc còn liên kết. Tải lại để kiểm tra trước khi thực hiện lại.';
       if (upstream.status === 400 && issue) message = 'Thao tác không hợp lệ với dữ liệu hiện tại. Kiểm tra loại công việc, workflow, người nhận và sprint.';
+      if (upstream.status === 409 && board) message = 'Card/cấu hình đã thay đổi, cột đạt WIP hoặc sprint không còn cho phép thao tác. Tải lại trước khi thử tiếp.';
+      if (upstream.status === 400 && board) message = 'Cột, trạng thái hoặc vị trí không hợp lệ với board hiện tại.';
       const response = failure(upstream.status, message);
       return route === 'auth/refresh' && upstream.status === 401 ? clearSession(response) : response;
     }
