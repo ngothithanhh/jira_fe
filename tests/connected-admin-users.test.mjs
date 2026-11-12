@@ -170,3 +170,18 @@ test('role CRUD uncertain result cannot complete and actor replacement cannot re
   assert.equal(h.reads(),0);
  },{roleDomain:true,...opts});
 });
+
+test('matrix stale409 is recoverable without completing or changing snapshot and PUT uses same actor latch',async()=>{
+ await adminWriteHarness(async h=>{
+  let done=0;await h.hook.run('roles/7/permissions',{method:'PUT',body:JSON.stringify({expectedPermissionIds:[],permissionIds:[1]})},()=>true,()=>done++);
+  assert.equal(h.writes(),1);assert.equal(done,0);assert.equal(h.state[3],409);
+  assert.equal(h.qc.getQueryData(['connected','admin-roles',8,'uncertain']),false);
+ },{roleDomain:true,status:409});
+});
+test('matrix PUT with post-commit refetch failure cannot complete and keeps latch after GC',async()=>{
+ await adminWriteHarness(async h=>{
+  await h.hook.run('roles/7/permissions',{method:'PUT',body:JSON.stringify({expectedPermissionIds:[],permissionIds:[1]})},()=>true,()=>assert.fail('uncertain completion'));
+  assert.equal(h.writes(),1);assert.equal(h.qc.getQueryData(['connected','admin-roles',8,'uncertain']),true);
+  await new Promise(r=>setTimeout(r,60));assert.equal(h.qc.getQueryData(['connected','admin-roles',8,'uncertain']),true);
+ },{roleDomain:true,activeError:true});
+});

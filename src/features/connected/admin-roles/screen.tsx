@@ -4,15 +4,17 @@ import {Btn,Field,InlineAlert,Modal,TextInput,PageHeading,Card,tableClass,thClas
 import {useRoleCatalog} from './queries';
 import {useAdminUserWrite} from '../admin-users/queries';
 import {permissionLabels,type RoleRow} from './contract';
+import {PermissionMatrix} from './permission-matrix';
 
-/** R1 hiển thị role thật và danh mục quyền chỉ đọc; không dựng matrix lưu giả hoặc scope/description không có trong DB. */
+/** Quản trị role và tập quyền thật; CRUD và ma trận dùng cùng khóa ghi phiên, không có scope/description giả. */
 export function ConnectedAdminRoles(){
   const {roles,permissions,gate}=useRoleCatalog();
   const write=useAdminUserWrite({domain:'admin-roles',entityLabel:'vai trò'});
   const [draft,setDraft]=useState<{role:number|null;name:string}|null>(null),[removing,setRemoving]=useState<RoleRow|null>(null);
+  const [editingPermissions,setEditingPermissions]=useState(false);
   const canDispatch=!!gate.data?.systemAdmin&&!gate.isError&&!roles.isError&&!permissions.isError&&!roles.isPending&&!permissions.isPending;
   const allowed=useRef(canDispatch);allowed.current=canDispatch;
-  const blocked=!canDispatch||write.busy||write.uncertain;
+  const blocked=!canDispatch||write.busy||write.uncertain||editingPermissions;
   const retry=()=>{void gate.refetch();void roles.refetch();void permissions.refetch();};
   const close=()=>{if(!write.busy){setDraft(null);setRemoving(null);write.clearError();}};
   const error=gate.error||roles.error||permissions.error;
@@ -26,10 +28,11 @@ export function ConnectedAdminRoles(){
     <PageHeading title="Vai trò & quyền" description="Chỉ SYSTEM_ADMIN quản trị toàn hệ thống. Các vai trò còn lại được gán trong từng dự án."
       actions={<Btn variant="primary" disabled={blocked} onClick={()=>{write.clearError();setDraft({role:null,name:''});}}>Tạo vai trò</Btn>}/>
     {feedback}
-    {roles.isPending?<p role="status">Đang tải vai trò…</p>:<div className="overflow-x-auto"><table className={tableClass}><thead><tr>{['Tên vai trò','Phạm vi','Gán toàn cục','Thành viên dự án','Thao tác'].map(x=><th key={x} className={thClass}>{x}</th>)}</tr></thead>
+    {roles.isPending?<p role="status">Đang tải vai trò…</p>:<div className="overflow-x-auto"><table className={tableClass} aria-label="Danh sách vai trò"><thead><tr>{['Tên vai trò','Phạm vi','Gán toàn cục','Thành viên dự án','Thao tác'].map(x=><th key={x} className={thClass}>{x}</th>)}</tr></thead>
     <tbody>{roles.data?.map(r=><tr key={r.role}><td className={tdClass}><strong>{r.roleName}</strong>{r.reservedName&&<span className="ml-2 text-xs text-[#6b778c]">Mặc định</span>}</td><td className={tdClass}>{r.scope==='GLOBAL'?'Hệ thống':'Dự án'}</td><td className={tdClass}>{r.globalAssignmentCount}{r.scope==='PROJECT'&&r.globalAssignmentCount>0&&<p className="mt-1 text-xs text-[#974f0c]">Gán cũ; không cấp quyền toàn cục. Gỡ tại Người dùng.</p>}</td><td className={tdClass}>{r.projectAssignmentCount}</td><td className={tdClass}>{r.reservedName?<span className="text-xs text-[#6b778c]">Giữ tên và vai trò mặc định</span>:<div className="flex gap-2"><Btn variant="subtle" disabled={blocked} aria-label={'Đổi tên '+r.roleName} onClick={()=>{write.clearError();setDraft({role:r.role,name:r.roleName});}}>Đổi tên</Btn><Btn variant="subtle" disabled={blocked} aria-label={'Xóa '+r.roleName} onClick={()=>{write.clearError();setRemoving(r);}}>Xóa</Btn></div>}</td></tr>)}</tbody></table>
     {roles.data?.length===0&&!roles.isError&&<p>Chưa có vai trò.</p>}</div>}
-    <Card title="Danh mục quyền"><p className="mb-4 text-sm text-[#6b778c]">Danh mục chỉ xem. Chủ dự án quản lý dự án của mình; vai trò thành viên chỉ có hiệu lực trong dự án được gán.</p>
+    <PermissionMatrix write={write} blocked={!canDispatch||!!draft||!!removing} onEditingChange={setEditingPermissions}/>
+    <Card title="Danh mục quyền"><p className="mb-4 text-sm text-[#6b778c]">Danh mục mã quyền cố định. Cấu hình quyền của từng vai trò ở ma trận phía trên.</p>
       {permissions.isPending?<p role="status">Đang tải danh mục quyền…</p>:<table className={tableClass}><thead><tr><th className={thClass}>Mã quyền</th><th className={thClass}>Ý nghĩa</th></tr></thead><tbody>{permissions.data?.map(p=><tr key={p.permissionId}><td className={tdClass}><code>{p.permissionName}</code></td><td className={tdClass}>{permissionLabels[p.permissionName]||'Mã legacy chưa được chương trình hỗ trợ'}</td></tr>)}</tbody></table>}
     </Card>
     {draft&&<Modal open title={draft.role===null?'Tạo vai trò':'Đổi tên vai trò'} onOpenChange={v=>{if(!v)close();}} footer={<><Btn disabled={write.busy} onClick={close}>Hủy</Btn><Btn variant="primary" type="submit" form="role-form" disabled={blocked||!draft.name.trim()}>Lưu vai trò</Btn></>}>

@@ -1,5 +1,7 @@
 # Role R1 và tự tạo project P1
 
+Ma trận R2 hiện đã được nối; xem [ROLE_PERMISSIONS_R2_CONNECTED.md](ROLE_PERMISSIONS_R2_CONNECTED.md). Phần R1 dưới đây giữ lại luồng bàn giao ban đầu.
+
 ## Phạm vi đã nối
 
 Trang /app/admin/roles giữ shell/header/sidebar hiện có, đọc danh sách role/count và danh mục permission thật.

@@ -134,7 +134,10 @@ const ok=(r)=>{assert.ok(r.status>=200&&r.status<300,JSON.stringify(r));return r
     // Tạo đủ 2 trang qua cùng BFF thật; cleanup chỉ xóa issue mang tag của lượt test này.
     const types=ok(await request(page,`projects/${shop.id}/issue-types`));assert.ok(types.length);
     for(let n=0;n<11;n++) ok(await request(page,'issues','POST',{projectId:shop.id,issueTypeId:types[0].issueTypeId,summary:tag+' Kiểm thử '+String(n).padStart(2,'0'),priority:'MEDIUM'}));
-    await page.reload();await page.getByLabel('Tìm công việc',{exact:true}).fill(tag);await page.getByLabel('Số dòng mỗi trang').selectOption('10');
+    await page.reload();
+    // Chờ đúng request keyword sau debounce; tổng12 của danh sách chưa lọc có thể giống tổng fixture và làm click phân trang quá sớm.
+    const filteredPage=page.waitForResponse(response=>{const url=new URL(response.url());return url.pathname.endsWith('/issues/search')&&url.searchParams.get('keyword')===tag&&url.searchParams.get('size')==='10';});
+    await page.getByLabel('Tìm công việc',{exact:true}).fill(tag);await page.getByLabel('Số dòng mỗi trang').selectOption('10');await filteredPage;
     await page.getByText('1–10 / 12 kết quả',{exact:true}).waitFor();
     await page.getByRole('button',{name:'Trang sau',exact:true}).click();await page.getByText('11–12 / 12 kết quả',{exact:true}).waitFor();
     await page.getByLabel('Lọc người phụ trách').selectOption(String(dev.id));await page.getByText('1–1 / 1 kết quả',{exact:true}).waitFor();

@@ -43,12 +43,13 @@ export function useAdminUserWrite(options?:{domain:'admin-roles';entityLabel:str
   const domainKey=options?['connected',options.domain,actor] as const:adminUserKey(actor);
   const uncertainKey=[...domainKey,'uncertain'] as const;
   const locked=useRef(false),[busy,setBusy]=useState(false),[error,setError]=useState(''),[uncertain,setUncertain]=useState(()=>client.getQueryData<boolean>(uncertainKey)===true);
+  const [status,setStatus]=useState(0);
   const affected=(q:{queryKey:readonly unknown[]})=>q.queryKey[0]==='connected'&&q.queryKey[2]===actor;
   const cacheCurrent=()=>!hasPendingLogout()&&client.getQueryData<AccountContext|null>(['connected','session'])?.user.userId===actor;
   /** Giữ action intent cố định khi xác nhận; không bật/tắt ngược theo DTO refetch hoặc replay khi chưa rõ kết quả. */
   async function run(path:string,init:RequestInit,allowed:()=>boolean,done:()=>void){
     if(!actor||locked.current||uncertain)return;
-    const current=capture();locked.current=true;setBusy(true);setError('');
+    const current=capture();locked.current=true;setBusy(true);setError('');setStatus(0);
     // Giữ cờ qua đóng modal/rời trang; chỉ reload hoặc completion xác nhận mới cho phép một mutation tiếp.
     // Query này không có observer; bỏ GC mặc định5 phút để rời trang lâu không tự mở lại quyền gửi.
     client.setQueryDefaults(uncertainKey,{gcTime:Infinity});
@@ -90,6 +91,7 @@ export function useAdminUserWrite(options?:{domain:'admin-roles';entityLabel:str
       let refresh:Promise<unknown>|undefined;
       const confirmed=await completeConnectedMutation(actor,current,()=>{
         const unknown=status===0||status>=500;setUncertain(unknown);client.setQueryData(uncertainKey,unknown);
+        setStatus(status);
         setError(unknown?'Chưa xác nhận được kết quả. Tải lại trang trước khi thao tác tiếp.':failure instanceof Error?failure.message:'Không cập nhật được người dùng.');
         if(status===403||status===409)refresh=client.invalidateQueries({predicate:affected});
       });
@@ -97,5 +99,5 @@ export function useAdminUserWrite(options?:{domain:'admin-roles';entityLabel:str
       await refresh;
     }finally{locked.current=false;if(current())setBusy(false);}
   }
-  return {run,busy,error,uncertain,clearError:()=>setError('')};
+  return {run,busy,error,uncertain,status,clearError:()=>{setError('');setStatus(0);}};
 }
