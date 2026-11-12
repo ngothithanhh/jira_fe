@@ -1,30 +1,39 @@
-# Bàn giao agent ở máy khác
+# Hai máy cùng nối FE–BE theo nhóm chức năng
 
-Tài liệu chính, phân công và prompt bắt đầu nằm ở backend:
+Cập nhật yêu cầu mới: **“bên kia cũng nối fe be đi cho nhanh”**. Phân công này thay thế nhiệm vụ trước chỉ làm BE/reconcile/dataset.
 
-[REMOTE_COLLABORATION.md — backend feat/backend-integration](https://github.com/ngothithanhh/jira/blob/feat/backend-integration/docs/REMOTE_COLLABORATION.md)
+| Máy | Phạm vi vòng đầu |
+|---|---|
+| Máy hiện tại | Project, issue/detail/comment/attachment, backlog, sprint/board từ FE tới BE; giữ auth/session/query lifecycle/BFF/shell chung. |
+| Máy kia | B1 Notification, B2 Báo cáo Scrum từ FE tới BE/DB, tự chuẩn bị dữ liệu nhỏ và test thật. Sau mỗi phần báo người dùng kiểm rồi dừng. |
 
-## Phân công đã đề xuất
+Không bắt máy kia chờ hợp nhất toàn bộ master BE hoặc full dataset. Cả hai dùng BE feat/backend-integration và FE feat/backlog-ui-review đã có phần 1; không tự merge master đang phát triển riêng.
 
-- Máy hiện tại giữ FE project/issue/backlog/sprint/board, BFF/session/query/shell chung.
-- Máy kia chỉ làm BE: trước tiên đối chiếu `feat/backend-integration` với `master` đang có 7 commit riêng và lập plan hợp nhất; sau khi người dùng chốt, hợp nhất/test rồi làm demo dataset/seeder/verifier/bootstrap.
-- FE nền để đọc: `feat/backlog-ui-review`. BE nền đã kiểm phần 1: `feat/backend-integration`. Không clone mặc định main/master rồi cho rằng đã có toàn bộ phần 1.
+**[Tài liệu đầy đủ: file sở hữu, API, B0/B1/B2 và test](https://github.com/ngothithanhh/jira/blob/feat/backend-integration/docs/REMOTE_COLLABORATION.md).**
 
-## Prompt có thể gửi nguyên cho agent kia
+## Prompt gửi agent kia
 
 ```text
-Bạn phụ trách backend của Hệ thống quản lý dự án Scrum, làm ở máy riêng.
-Clone ngothithanhh/jira nhánh feat/backend-integration và jira_fe nhánh feat/backlog-ui-review vào hai thư mục cạnh nhau. FE chỉ đọc.
-Đọc docs/REMOTE_COLLABORATION.md trong repo BE trước và tuân thủ quy trình plan được người dùng chốt trước khi code.
-Việc đầu tiên: fetch, so sánh BE feat/backend-integration với origin/master. Có 7 commit remote riêng ở thời điểm bàn giao, 37 file cùng sửa; lập bảng trùng/khác API/schema/quyền/version/transaction, đề xuất cách giữ cả tính năng cần thiết mà chỉ còn một hợp đồng và implementation cho mỗi endpoint.
-Chưa merge/code trước khi người dùng chốt plan đối chiếu. Không dùng force-push hoặc chọn toàn bộ ours/theirs. Giữ auth/context và contract mà FE phần 1 đang dùng.
-Làm trên work/be-reconcile; test, commit/push nhánh của bạn, gửi SHA + thay đổi API/schema + bằng chứng test + luồng người dùng kiểm. Không push trực tiếp master hoặc nhánh nền.
-Sau khi hợp nhất được duyệt mới nhận việc demo dataset trên nhánh riêng theo mục 4 của handoff: profile opt-in, DB demo riêng, khoảng 8 user/3 project/90 issue, sprint/lịch sử/report nhất quán, chạy lại không nhân bản hay ghi đè sửa tay, không có credential trong Git.
-Không sửa FE hoặc làm các nhiệm vụ khác ngoài phạm vi. Sau mỗi phần đã test thì báo người dùng kiểm và dừng.
+Bạn làm fullstack Notification và Báo cáo Scrum trên máy riêng.
+Clone jira nhánh feat/backend-integration và jira_fe nhánh feat/backlog-ui-review vào hai thư mục cạnh nhau. Đọc BE docs/REMOTE_COLLABORATION.md.
+Nhiệm vụ mới thay thế phân công chỉ làm BE/reconcile/dataset; không chờ và không tự merge master.
+Tạo work/notifications ở cả hai repo. Đọc code và trình plan B0/B1 cụ thể để người dùng chốt trước khi code.
+B0: BFF hiện chưa cho notification/report qua; tách patch server.ts allowlist/Bearer/Origin/response rỗng thành commit nhỏ riêng, gửi owner ghép/test trước. Không viết lại proxy hoặc auth.
+B1: nối trang/bell Notification với API và PostgreSQL thật, inbox/unread/mark-one/mark-all/delete, quyền recipient/cache theo user. Tự test HTTP/browser, commit/push FE+BE liên quan, gửi SHA, URL và luồng kiểm rồi dừng.
+Sau B1 được kiểm, fetch nền mới, tạo work/scrum-reports và lập plan B2: project/sprint selector, summary, burndown event, velocity snapshot, null/unavailable và quyền project. Dữ liệu từ BE, không dùng fixture/số trang trí trong FE.
+Bạn sở hữu features/connected/notifications/**, reports/** và pages notification/report; BE chỉ sửa domain tương ứng khi plan cần.
+Shared auth/client/session/BFF/shell/kit/package/config và core project/issue/sprint/board không sửa lẫn feature. Menu/bell hoặc BFF wiring tách commit nhỏ để owner ghép/test.
+Không làm admin/members/full dataset hoặc tự đổi contract/migration cũ. Mỗi phần test xong phải báo luồng người dùng kiểm và chờ phản hồi.
 ```
 
-## Tình trạng FE hiện tại
+## File và luồng cần nối
 
-UI demo đã có các màn của 19 nhóm chức năng tại `/ui-review` trong development. Ứng dụng thật `/app` mới nối đăng ký/login/phiên/account/context/list project chỉ đọc, theo [CONNECTED_PART1.md](CONNECTED_PART1.md). Project/issue/backlog/board thật chưa được nối đầy đủ.
+- Pages: app/app/(protected)/notifications/page.tsx và app/app/(protected)/projects/[projectId]/reports/page.tsx.
+- Code mới: src/features/connected/notifications/**, reports/** cùng tests/docs domain riêng.
+- Dùng connectedRequest và session/query provider chung; key bắt đầu connected và có user/project/sprint cần thiết. Không dùng DemoProvider hoặc localStorage token.
+- UI tham khảo: ui-demo/screens/notifications-screen.tsx, reports-screen.tsx, charts.tsx; tách phần trình bày, không sửa fixture để giả thành API thật.
+- Notification DTO hiện không có projectId; không đoán ID/link issue. Mark-one-read trả 200 rỗng, delete 204; patch BFF phải xử lý đúng trước khi dựng feature.
+- Reports dùng sprint đúng project, step/event burndown và CLOSED snapshot; null/unavailable không đổi thành 0. API đọc/đơn vị/quyền theo tài liệu BE.
+- BFF/menu/bell chung do owner ghép patch nhỏ, chỉ một bên sửa ở mỗi thời điểm. Sau B0, pages/domain có thể làm và test trực tiếp qua URL dù chưa có menu.
 
-Tài liệu `AGENT_START_UI.md`, `UI_FIRST_PLAN.md`, `UI_IMPLEMENTATION_HANDOFF.md` và các UI_REVIEW_* là lịch sử đợt làm giao diện, không phải nhiệm vụ mới cho agent backend. Tài khoản/DB/ảnh/log ở máy gốc không có trong Git; máy mới tự cấu hình và dựng DB riêng theo hướng dẫn BE.
+[CONNECTED_PART1.md](CONNECTED_PART1.md) mô tả phần auth/account/list project đã nối. Các prompt UI cũ là lịch sử; DB/credential/log ở máy gốc không có trong Git.

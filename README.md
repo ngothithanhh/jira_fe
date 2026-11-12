@@ -2,7 +2,7 @@
 
 Source giao diện đầy đủ và phần 1 nối backend nằm trên nhánh `feat/backlog-ui-review`.
 
-- [Bàn giao làm trên hai máy / prompt cho agent backend](docs/REMOTE_COLLABORATION.md)
+- [Hai máy cùng nối FE–BE: phân công theo chức năng và prompt giao việc](docs/REMOTE_COLLABORATION.md)
 - [Phần 1 đã nối: cấu hình, kiểm thử và luồng kiểm tra](docs/CONNECTED_PART1.md)
 - [Plan tích hợp theo từng phần](docs/BACKEND_INTEGRATION_PLAN.md)
 - Backend tương ứng: [ngothithanhh/jira — feat/backend-integration](https://github.com/ngothithanhh/jira/tree/feat/backend-integration).
