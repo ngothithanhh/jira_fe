@@ -110,7 +110,9 @@ function SprintReports({ userId, projectId, tab, requestedSprintId }: ProjectSel
           || (b.endDate ?? '').localeCompare(a.endDate ?? '')
           || b.sprintId - a.sprintId,
         );
-        if (options.length === 0) return <EmptyState title="Chưa có sprint đã bắt đầu" />;
+        if (options.length === 0) return requestedSprintId === null
+          ? <EmptyState title="Chưa có sprint đã bắt đầu" />
+          : <EmptyState title="Sprint trên URL không khả dụng" description="Dự án chưa có sprint đã bắt đầu để chọn." />;
         const sprint = requestedSprintId === null ? options[0] : options.find((item) => item.sprintId === readId(requestedSprintId));
         return (
           <div className="space-y-4">

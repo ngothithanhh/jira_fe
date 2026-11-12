@@ -1,8 +1,10 @@
+import { sprintPatch } from './sprint-contract.ts';
+
 export const priorities = ['HIGHEST', 'HIGH', 'MEDIUM', 'LOW', 'LOWEST'] as const;
 const id = (s: unknown) => typeof s === 'number' && Number.isInteger(s) && s > 0 && s <= 2147483647;
 const natural = (s: string) => /^(0|[1-9]\d*)$/.test(s) && Number.isSafeInteger(Number(s));
 const positive = (s: string) => /^[1-9]\d*$/.test(s) && id(Number(s));
-type Kind = 'read' | 'create' | 'edit' | 'delete' | 'assign' | 'status' | 'order' | 'sprint' | 'link' | 'start' | 'complete';
+type Kind = 'read' | 'create' | 'edit' | 'delete' | 'assign' | 'status' | 'order' | 'sprint' | 'sprint-edit' | 'sprint-delete' | 'link' | 'start' | 'complete';
 export type IssueRoute = { kind: Kind; write: boolean; suffix: string };
 
 /** Chỉ mở các API issue/lập kế hoạch đã nối. ID trên path luôn là khóa DB nguyên dương. */
@@ -23,6 +25,8 @@ export function issueRoute(route: string, method: string, query: URLSearchParams
   else if (/^issues\/[1-9]\d*\/status$/.test(route) && method === 'PUT') { kind = 'status'; allowed = ['statusId']; }
   else if (/^(projects\/[1-9]\d*\/backlog|sprints\/[1-9]\d*\/issues)\/order$/.test(route) && method === 'PUT') kind = 'order';
   else if (route === 'sprints' && method === 'POST') kind = 'sprint';
+  else if (/^sprints\/[1-9]\d*$/.test(route) && method === 'PATCH') kind = 'sprint-edit';
+  else if (/^sprints\/[1-9]\d*$/.test(route) && method === 'DELETE') kind = 'sprint-delete';
   else if (/^sprints\/[1-9]\d*\/issues\/[1-9]\d*$/.test(route) && ['POST','DELETE'].includes(method)) kind = 'link';
   else if (/^sprints\/[1-9]\d*\/start$/.test(route) && method === 'PUT') kind = 'start';
   else if (/^sprints\/[1-9]\d*\/complete$/.test(route) && method === 'PUT') { kind = 'complete'; allowed = ['moveToSprintId']; }
@@ -46,6 +50,7 @@ export function issueRoute(route: string, method: string, query: URLSearchParams
 
 /** Chỉ chuyển trường API cho phép; reporter, rank, version và quyền không lấy từ body browser. */
 export function issueBody(kind: Kind, input: unknown): string | undefined {
+  if (kind === 'sprint-edit') return JSON.stringify(sprintPatch(input));
   if (!['create','edit','order','sprint'].includes(kind)) return undefined;
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('Dữ liệu không hợp lệ.');
   const value = input as Record<string, unknown>;

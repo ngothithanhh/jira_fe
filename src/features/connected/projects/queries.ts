@@ -2,7 +2,7 @@
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
-import { connectedRequest, hasPendingLogout } from '../client';
+import { connectedReadForActor, connectedRequest, hasPendingLogout } from '../client';
 import { useSession, type AccountContext } from '../session';
 import type { ProjectDto } from './model';
 
@@ -15,18 +15,18 @@ export const projectKeys = {
 export function useProjects() {
   const { data } = useSession();
   return useQuery({ queryKey: projectKeys.list(data?.user.userId), enabled: !!data,
-    queryFn: ({ signal }) => connectedRequest<ProjectDto[]>('projects/getList', { signal }), retry: false });
+    queryFn: ({ signal }) => connectedReadForActor(data!.user.userId, signal, () => connectedRequest<ProjectDto[]>('projects/getList', { signal }, false)), retry: false });
 }
 
 /** Đọc context đúng project trước detail; không đủ quyền thì dừng, không đọc dữ liệu một dự án khác thay thế. */
 export function useConnectedProject(id: number | null) {
   const { data } = useSession();
   return useQuery({ queryKey: projectKeys.detail(data?.user.userId, id), enabled: !!data && id !== null,
-    queryFn: async ({ signal }) => {
-      const context = await connectedRequest<AccountContext>(`account/context?projectId=${id}`, { signal });
-      const project = await connectedRequest<ProjectDto>(`projects/${id}`, { signal });
+    queryFn: ({ signal }) => connectedReadForActor(data!.user.userId, signal, async () => {
+      const context = await connectedRequest<AccountContext>(`account/context?projectId=${id}`, { signal }, false);
+      const project = await connectedRequest<ProjectDto>(`projects/${id}`, { signal }, false);
       return { context, project };
-    }, retry: false });
+    }), retry: false });
 }
 
 /** Chỉ refresh cache của phiên vừa ghi; response cũ sau logout/đổi tài khoản không dựng lại cache người trước. */

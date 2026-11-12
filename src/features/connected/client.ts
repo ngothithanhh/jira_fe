@@ -103,8 +103,37 @@ export async function connectedRequest<T>(path: string, init?: RequestInit, reco
  * Kiểm /me và khôi phục phiên trước khi ghi; chỉ gửi mutation một lần, không replay 401 bằng tài khoản mới.
  * userId khác nghĩa là form thuộc phiên cũ: dừng409 trước khi gửi bất kỳ mutation nghiệp vụ nào.
  */
-export async function connectedMutation<T>(path: string, userId: number, init: RequestInit, isCurrent: () => boolean = () => true): Promise<T> {
-  return withMutationActor(userId, isCurrent, async () => readResponse<T>(await send(path, init)));
+export async function connectedMutation<T>(path: string, userId: number, init: RequestInit, isCurrent: () => boolean = () => true, onDispatch?: () => void): Promise<T> {
+  return withMutationActor(userId, isCurrent, async () => {
+    onDispatch?.();
+    return readResponse<T>(await send(path, init));
+  });
+}
+
+/** Giữ một actor cho chuỗi GET nhiều bước; khôi phục phiên ngoài khóa rồi kiểm lại actor trước khi đọc. */
+export async function connectedReadForActor<T>(actor: number, signal: AbortSignal, load: () => Promise<T>): Promise<T> {
+  const read = () => withSessionLock(async () => {
+    signal.throwIfAborted();
+    const checkActor = async () => {
+      if (hasPendingLogout()) throw new ConnectedError(401, 'Phiên đã đóng.');
+      const { user } = await connectedRequest<{ user: { id: number } }>('auth/me', { signal }, false);
+      signal.throwIfAborted();
+      if (user.id !== actor || hasPendingLogout()) throw new ConnectedError(409, 'Tài khoản đã thay đổi.');
+    };
+    await checkActor();
+    const data = await load();
+    signal.throwIfAborted();
+    if (!navigator.locks) await checkActor();
+    if (hasPendingLogout()) throw new ConnectedError(401, 'Phiên đã đóng.');
+    return data;
+  });
+  try {
+    return await read();
+  } catch (error) {
+    if (signal.aborted || !(error instanceof ConnectedError) || error.status !== 401 || hasPendingLogout()) throw error;
+    await connectedRequest('auth/me', { signal });
+    return read();
+  }
 }
 
 /** Kiểm users.user_id của form bằng /me dưới khóa phiên rồi mới gọi dispatch; hàm không tự gửi lại thao tác ghi. */

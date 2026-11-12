@@ -59,6 +59,7 @@ export function BacklogView({
   onOpenIssue,
   notify = true,
   writeDisabled = false,
+  onManageSprint,
 }: {
   data: PlanningData;
   actions: PlanningActions;
@@ -67,6 +68,7 @@ export function BacklogView({
   onOpenIssue?: (id: number) => void;
   notify?: boolean;
   writeDisabled?: boolean;
+  onManageSprint?: (sprintId: number, operation: 'edit' | 'delete') => void;
 }) {
   const [search, setSearch] = useState('');
   const [person, setPerson] = useState('');
@@ -260,13 +262,23 @@ export function BacklogView({
                       {dateLabel(sprint.startDate)} – {dateLabel(sprint.endDate)}
                     </span>
                   )}
-                  <div className="ml-auto flex items-center gap-2">
+                  <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
                     <span
                       title="Tổng story points"
                       className="min-w-6 rounded-full bg-[#dfe1e6] px-1.5 py-0.5 text-center text-[11px] font-medium text-[#42526e]"
                     >
                       {points(group.issues)}
                     </span>
+                    {sprint && onManageSprint && permissions.sprint && (
+                      <>
+                        <Button variant="secondary" className={secondaryAction} size="xs" disabled={busy || writeDisabled}
+                          onClick={() => onManageSprint(sprint.id, 'edit')}>Sửa sprint</Button>
+                        {sprint.state === 'FUTURE' && (
+                          <Button variant="secondary" className={secondaryAction} size="xs" disabled={busy || writeDisabled}
+                            onClick={() => onManageSprint(sprint.id, 'delete')}>Xóa sprint</Button>
+                        )}
+                      </>
+                    )}
                     {sprint?.state === 'ACTIVE' && (
                       <Button
                         variant="secondary"

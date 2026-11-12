@@ -177,7 +177,8 @@ export async function backendRoute(request: Request, path: string[]) {
     body = JSON.stringify(payload);
   }
   // Giới hạn payload lập kế hoạch; các thao tác link/status/assign không cần body.
-  if (issue?.write && ['create','edit','order','sprint'].includes(issue.kind)) {
+  if (issue?.kind === 'sprint-delete' && await request.text() !== '') return failure(400, 'Yêu cầu xóa sprint không nhận body.');
+  if (issue?.write && ['create','edit','order','sprint','sprint-edit'].includes(issue.kind)) {
     const raw = await request.text();
     if (raw.length > 1048576) return failure(413, 'Dữ liệu quá dài.');
     try { body = issueBody(issue.kind, JSON.parse(raw)); }
@@ -232,6 +233,8 @@ export async function backendRoute(request: Request, path: string[]) {
       if (upstream.status === 409 && projectItem && request.method === 'DELETE') message = 'Dự án còn dữ liệu liên kết nên chưa thể xóa.';
       if (upstream.status === 409 && issue) message = 'Dữ liệu đã thay đổi hoặc còn liên kết. Tải lại để kiểm tra trước khi thực hiện lại.';
       if (upstream.status === 400 && issue) message = 'Thao tác không hợp lệ với dữ liệu hiện tại. Kiểm tra loại công việc, workflow, người nhận và sprint.';
+      if (upstream.status === 400 && issue?.kind === 'sprint-edit') message = 'Kiểm tra tên, mục tiêu và thứ tự ngày của sprint.';
+      if (upstream.status === 409 && (issue?.kind === 'sprint-edit' || issue?.kind === 'sprint-delete')) message = 'Trạng thái sprint đã thay đổi hoặc sprint còn liên kết. Kiểm tra dữ liệu vừa tải lại.';
       if (upstream.status === 409 && board) message = 'Card/cấu hình đã thay đổi, cột đạt WIP hoặc sprint không còn cho phép thao tác. Tải lại trước khi thử tiếp.';
       if (upstream.status === 400 && board) message = 'Cột, trạng thái hoặc vị trí không hợp lệ với board hiện tại.';
       if(configuration&&upstream.status===409){
