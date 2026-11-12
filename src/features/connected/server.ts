@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server.js';
+import { accountBody } from './account/contract.ts';
 import { issueBody, issueRoute, type IssueRoute } from './issues/contract.ts';
 import { boardBody, boardRoute, type BoardAction } from './board/contract.ts';
 import { memberBody, memberRoute } from './members/contract.ts';
@@ -6,6 +7,7 @@ import { memberBody, memberRoute } from './members/contract.ts';
 const ACCESS = 'jira_access';
 const REFRESH = 'jira_refresh';
 const NO_STORE = { 'Cache-Control': 'no-store, private', Vary: 'Cookie' };
+const PASSWORD_UNCERTAIN = 'Chưa xác nhận được kết quả đổi mật khẩu. Hãy thử đăng nhập bằng mật khẩu mới.';
 
 /** Đọc cookie của cầu nối; cookie hỏng được xem là thiếu phiên, không làm route trả 500. */
 function readCookie(request: Request, name: string) {
@@ -76,11 +78,13 @@ export async function backendRoute(request: Request, path: string[]) {
   const readAction = request.method === 'GET' && (['auth/me', 'account/context', 'projects/getList'].includes(route) || !!projectItem);
   const projectWrite = (request.method === 'POST' && route === 'projects/create') || (!!projectItem && ['PATCH', 'DELETE'].includes(request.method));
   const member = memberRoute(route, request.method);
+  const accountWrite = request.method === 'PATCH' && route === 'account/profile' ? 'profile'
+    : request.method === 'POST' && route === 'account/password' ? 'password' : null;
   // Giữ cả board và C1: whitelist riêng, cùng kiểm cookie/Origin của luồng connected đã có.
-  const protectedAction = readAction || projectWrite || !!issue || !!board || !!member;
+  const protectedAction = readAction || projectWrite || !!issue || !!board || !!member || !!accountWrite;
   if (!authAction && !protectedAction) return failure(404, 'Chức năng chưa được kết nối.');
   // Tất cả mutation dùng cookie đều kiểm Origin; public auth vẫn không nhận Bearer cũ.
-  if ((authAction || projectWrite || issue?.write || board?.write || (member && member !== 'roles')) && !trustedOrigin(request)) return failure(403, 'Nguồn yêu cầu không hợp lệ.');
+  if ((authAction || projectWrite || accountWrite || issue?.write || board?.write || (member && member !== 'roles')) && !trustedOrigin(request)) return failure(403, 'Nguồn yêu cầu không hợp lệ.');
 
   // Chỉ chuyển query projectId hợp lệ; không chuyển actorId hoặc URL upstream từ người gọi.
   let suffix = issue?.suffix || board?.suffix || '';
@@ -151,6 +155,12 @@ export async function backendRoute(request: Request, path: string[]) {
     try {body=boardBody(board.kind,JSON.parse(raw));}
     catch(error){return failure(400,error instanceof SyntaxError?'Dữ liệu không hợp lệ.':(error as Error).message);}
   }
+  if (accountWrite) {
+    const raw = await request.text();
+    if (raw.length > 8192) return failure(413, 'Dữ liệu tài khoản quá dài.');
+    try { body = accountBody(accountWrite, JSON.parse(raw)); }
+    catch (error) { return failure(400, error instanceof SyntaxError ? 'Dữ liệu không hợp lệ.' : (error as Error).message); }
+  }
   try {
     // Địa chỉ chỉ lấy từ cấu hình server, không dùng NEXT_PUBLIC_API_URL và không follow redirect mang Bearer ra nơi khác.
     const base = process.env.BACKEND_API_URL || 'http://127.0.0.1:8080/api';
@@ -162,6 +172,13 @@ export async function backendRoute(request: Request, path: string[]) {
     if (route === 'auth/logout') {
       // Đóng phiên cục bộ kể cả mất kết nối/revoke lỗi; không thông báo đã thu hồi phía BE nếu BE không xác nhận.
       return clearSession(upstream.ok ? new NextResponse(null, { status: 204, headers: NO_STORE }) : failure(upstream.status, 'Đã thoát trên máy này nhưng chưa xác nhận thu hồi phiên trên máy chủ.'));
+    }
+    if (accountWrite === 'password') {
+      // BE204 đã tăng auth_version. Xóa cả hai cookie trước khi browser nhả khóa phiên.
+      if (upstream.status === 204) return clearSession(new NextResponse(null, { status: 204, headers: NO_STORE }));
+      if (upstream.status === 401) return clearSession(failure(401, 'Phiên đăng nhập đã hết hạn.'));
+      if (upstream.status === 400) return failure(400, 'Mật khẩu hiện tại không đúng.');
+      if (upstream.ok || upstream.status >= 500) return clearSession(failure(502, PASSWORD_UNCERTAIN));
     }
     if (!upstream.ok) {
       let message = upstream.status === 401 ? 'Thông tin đăng nhập hoặc phiên không hợp lệ.' : 'Không thể thực hiện yêu cầu.';
@@ -185,6 +202,7 @@ export async function backendRoute(request: Request, path: string[]) {
     const data = JSON.parse(text);
     return authAction ? establishSession(data) : NextResponse.json(data, { headers: NO_STORE });
   } catch {
+    if (accountWrite === 'password') return clearSession(failure(502, PASSWORD_UNCERTAIN));
     const response = failure(502, route === 'auth/logout'
       ? 'Đã thoát trên máy này nhưng chưa xác nhận thu hồi phiên trên máy chủ.'
       : 'Không kết nối được máy chủ. Vui lòng thử lại.');
