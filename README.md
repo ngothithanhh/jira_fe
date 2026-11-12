@@ -3,6 +3,7 @@
 Source giao diện đầy đủ và phần 1 nối backend nằm trên nhánh `feat/backlog-ui-review`.
 
 - [Hai máy cùng nối FE–BE: phân công theo chức năng và prompt giao việc](docs/REMOTE_COLLABORATION.md)
+- [Việc tiếp theo cho máy kia: thành viên dự án, hồ sơ và mật khẩu](docs/NEXT_REMOTE_TASKS.md)
 - [Phần 1 đã nối: cấu hình, kiểm thử và luồng kiểm tra](docs/CONNECTED_PART1.md)
 - [Phần 2A: quản lý dự án — tạo/xem/sửa/xóa và luồng kiểm](docs/CONNECTED_PROJECTS.md)
 - [Plan tích hợp theo từng phần](docs/BACKEND_INTEGRATION_PLAN.md)

@@ -1,5 +1,7 @@
 # Hai máy cùng nối FE–BE theo nhóm chức năng
 
+> **Nhiệm vụ mới sau Notification/Reports:** [NEXT_REMOTE_TASKS.md](NEXT_REMOTE_TASKS.md) — C1 thành viên dự án, C2 profile/password. Các đoạn B1/B2 dưới đây là lịch sử bàn giao đã xong, không giao lại.
+
 Cập nhật yêu cầu mới: **“bên kia cũng nối fe be đi cho nhanh”**. Phân công này thay thế nhiệm vụ trước chỉ làm BE/reconcile/dataset.
 
 > Phần project 2A đã bổ sung transport protected mutation/response rỗng và project gate/layout. Trước patch B0 hãy fetch nền mới, đọc [CONNECTED_PROJECTS.md](CONNECTED_PROJECTS.md), đặc biệt mục điều phối; không ghi đè server.ts/client.ts/shell.tsx bằng source phần1. Notification/Reports vẫn thuộc máy kia.
