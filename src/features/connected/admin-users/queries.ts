@@ -3,7 +3,7 @@ import {useRef,useState} from 'react';
 import {useQuery,useQueryClient} from '@tanstack/react-query';
 import {useRouter} from 'next/navigation';
 import {toast} from 'sonner';
-import {adminUserMutation,completeConnectedMutation,ConnectedError,hasPendingLogout} from '../client';
+import {adminUserMutation,connectedMutation,completeConnectedMutation,ConnectedError,hasPendingLogout} from '../client';
 import {useSession,type AccountContext} from '../session';
 import {useProjectMutationScope} from '../projects/queries';
 import {configurationRead,configGateKey,useConfigurationGate} from '../configuration/queries';
@@ -37,9 +37,11 @@ export function useAdminRoles(){
 }
 
 /** Một action chỉ có một mutation. Hoàn tất quyền/context trước refetch; tự khóa kết thúc phiên theo response BE. */
-export function useAdminUserWrite(){
+export function useAdminUserWrite(options?:{domain:'admin-roles';entityLabel:string}){
   const session=useSession(),actor=session.data?.user.userId,client=useQueryClient(),capture=useProjectMutationScope(),router=useRouter();
-  const uncertainKey=[...adminUserKey(actor),'uncertain'] as const;
+  // Role CRUD dùng lại bảo vệ actor/completion của trang users nhưng có latch riêng, không xử lý nhánh tự khóa.
+  const domainKey=options?['connected',options.domain,actor] as const:adminUserKey(actor);
+  const uncertainKey=[...domainKey,'uncertain'] as const;
   const locked=useRef(false),[busy,setBusy]=useState(false),[error,setError]=useState(''),[uncertain,setUncertain]=useState(()=>client.getQueryData<boolean>(uncertainKey)===true);
   const affected=(q:{queryKey:readonly unknown[]})=>q.queryKey[0]==='connected'&&q.queryKey[2]===actor;
   const cacheCurrent=()=>!hasPendingLogout()&&client.getQueryData<AccountContext|null>(['connected','session'])?.user.userId===actor;
@@ -52,9 +54,11 @@ export function useAdminUserWrite(){
     client.setQueryDefaults(uncertainKey,{gcTime:Infinity});
     client.setQueryData(uncertainKey,true);
     try{
-      const result=await adminUserMutation(path,actor,init,()=>current()&&allowed()
+      const canDispatch=()=>current()&&allowed()
         &&client.getQueryState(configGateKey(actor))?.status==='success'
-        &&client.getQueryData<AccountContext>(configGateKey(actor))?.systemAdmin===true,outcome=>{
+        &&client.getQueryData<AccountContext>(configGateKey(actor))?.systemAdmin===true;
+      const result=options?await connectedMutation(path,actor,init,canDispatch).then(()=>({ended:false})):
+        await adminUserMutation(path,actor,init,canDispatch,outcome=>{
           toast[outcome==='disabled'?'success':'warning'](outcome==='disabled'?'Đã khóa tài khoản của bạn.':outcome==='expired'?'Phiên đăng nhập đã hết hạn.':'Chưa xác nhận được kết quả tự khóa tài khoản. Hãy thử đăng nhập lại.');
           router.replace('/app/sign-in');
         });
@@ -69,14 +73,14 @@ export function useAdminUserWrite(){
         lostAdmin=!context.systemAdmin;
         // Gỡ quyền của chính actor vẫn giữ đăng nhập, nhưng mọi form admin và cache users phải biến mất.
         client.setQueryData(['connected','session'],context);client.setQueryData(configGateKey(actor),context);
-        if(lostAdmin){client.removeQueries({queryKey:adminUserKey(actor)});toast.success('Đã cập nhật. Bạn không còn quyền quản trị hệ thống.');}
+        if(lostAdmin){client.removeQueries({queryKey:domainKey});toast.success('Đã cập nhật. Bạn không còn quyền quản trị hệ thống.');}
         else refresh=client.invalidateQueries({predicate:affected});
       }))throw new ConnectedError(0,'Không xác nhận được phiên sau khi lưu.');
       if(lostAdmin)return;
       await refresh;if(!current())return;
       if(client.getQueryCache().findAll({predicate:affected}).some(q=>q.isActive()&&q.state.status==='error'))
         throw new ConnectedError(0,'Chưa tải lại được dữ liệu sau khi lưu.');
-      if(!await completeConnectedMutation(actor,current,()=>{client.setQueryData(uncertainKey,false);done();toast.success('Đã cập nhật người dùng.');}))
+      if(!await completeConnectedMutation(actor,current,()=>{client.setQueryData(uncertainKey,false);done();toast.success('Đã cập nhật '+(options?.entityLabel||'người dùng')+'.');}))
         throw new ConnectedError(0,'Không xác nhận được phiên sau khi lưu.');
     }catch(failure){
       if(!current())return;

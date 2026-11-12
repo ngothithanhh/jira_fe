@@ -94,9 +94,9 @@ import * as transport from '../src/features/connected/client.ts';
 const require=createRequire(import.meta.url),ts=require('typescript');
 
 /** Gọi hook production với QueryClient và transport thật; chỉ giả hooks React, context và fetch để điều khiển thứ tự. */
-async function adminWriteHarness(run,{identity=8,status=204,afterWriteIdentity,contextAdmin=true,activeError=false}={}){
+async function adminWriteHarness(run,{identity=8,status=204,afterWriteIdentity,contextAdmin=true,activeError=false,roleDomain=false}={}){
   await sessionEnvironment(async()=>{
-    const qc=new QueryClient({defaultOptions:{queries:{retry:false,gcTime:20}}}),state=[],toasts=[],key=['connected','admin-users',8,'list',''];
+    const qc=new QueryClient({defaultOptions:{queries:{retry:false,gcTime:20}}}),state=[],toasts=[],key=['connected',roleDomain?'admin-roles':'admin-users',8,'list',''];
     const account=()=>({user:{userId:identity},systemAdmin:contextAdmin,globalPermissions:[],projectId:null,projectPermissions:[]});
     let writes=0,reads=0;
     qc.setQueryData(['connected','session'],{...account(),systemAdmin:true});qc.setQueryData(['connected','config-gate',8],{...account(),systemAdmin:true});qc.setQueryData(key,{actor:8});
@@ -119,7 +119,7 @@ async function adminWriteHarness(run,{identity=8,status=204,afterWriteIdentity,c
       '../configuration/queries':{configurationRead:read,configGateKey:actor=>['connected','config-gate',actor]},'./contract':{userFrom,userPageFrom}
     };
     const module={exports:{}};new Function('require','module','exports',source)(name=>{assert.ok(name in dependencies,name);return dependencies[name];},module,module.exports);
-    try{await run({hook:module.exports.useAdminUserWrite(),qc,key,state,toasts,writes:()=>writes,reads:()=>reads});}
+    try{await run({hook:module.exports.useAdminUserWrite(roleDomain?{domain:'admin-roles',entityLabel:'vai trò'}:undefined),qc,key,state,toasts,writes:()=>writes,reads:()=>reads});}
     finally{unsubscribe();qc.clear();}
   });
 }
@@ -154,4 +154,19 @@ test('admin post-commit active refetch failure leaves persistent uncertainty lat
     await new Promise(resolve=>setTimeout(resolve,60));
     assert.equal(h.qc.getQueryData(['connected','admin-users',8,'uncertain']),true,'latch survives inactive query garbage collection');
   },{activeError:true});
+});
+
+test('role CRUD reuses actor guard with separate persistent latch and single dispatch',async()=>{
+ await adminWriteHarness(async h=>{
+  let done=0;await h.hook.run('user-role',{method:'POST',body:JSON.stringify({roleName:'REVIEWER'})},()=>true,()=>done++);
+  assert.equal(done,1);assert.equal(h.writes(),1);assert.equal(h.qc.getQueryData(['connected','admin-roles',8,'uncertain']),false);
+  assert.equal(h.qc.getQueryData(['connected','admin-users',8,'uncertain']),undefined);
+ },{roleDomain:true});
+});
+test('role CRUD uncertain result cannot complete and actor replacement cannot refetch old actor',async()=>{
+ for(const opts of [{status:503},{status:409,afterWriteIdentity:9}])await adminWriteHarness(async h=>{
+  await h.hook.run('user-role/9',{method:'DELETE'},()=>true,()=>assert.fail('unsafe completion'));
+  assert.equal(h.writes(),1);assert.equal(h.qc.getQueryData(['connected','admin-roles',8,'uncertain']),true);
+  assert.equal(h.reads(),0);
+ },{roleDomain:true,...opts});
 });

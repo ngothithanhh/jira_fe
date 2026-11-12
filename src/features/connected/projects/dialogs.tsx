@@ -79,7 +79,7 @@ export function DeleteConnectedProject({ project, onClose, onDeleted }: { projec
   }
   return <Modal open onOpenChange={(v) => { if (!v && !busy) onClose(); }} title={`Xóa dự án ${project.key}?`} width={460}
     footer={<><Btn variant="subtle" disabled={busy} onClick={onClose}>Hủy</Btn><Btn variant="danger" disabled={busy || typed.trim() !== project.key} onClick={() => void confirm()}>{busy ? 'Đang xóa…' : 'Xóa dự án'}</Btn></>}>
-    <div className="space-y-4"><p className="text-sm">Dự án còn công việc, thành viên, sprint hoặc bảng liên kết sẽ không xóa được. Thao tác không xóa dây chuyền các dữ liệu này.</p>
+    <div className="space-y-4"><p className="text-sm">Dự án còn công việc, thành viên khác chủ dự án, sprint hoặc bảng liên kết sẽ không xóa được. Thao tác không xóa dây chuyền các dữ liệu này.</p>
       {remove.isError && <InlineAlert tone="error">{remove.error.message}</InlineAlert>}
       <Field label={`Nhập ${project.key} để xác nhận`} required>{(p) => <TextInput {...p} autoFocus value={typed} disabled={busy} onChange={(e) => setTyped(e.target.value)} />}</Field>
     </div>

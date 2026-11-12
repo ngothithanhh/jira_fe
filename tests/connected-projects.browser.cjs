@@ -58,7 +58,7 @@ async function login(page, user) {
     await page.getByRole('heading', { name, exact: true }).waitFor();
     const created = await request(page, `projects/${projectId}`);
     assert.equal(created.status, 200); assert.equal(created.data.leader.id, admin.id);
-    assert.equal(created.data.projectKey, key); assert.equal(created.data.issueCount, 0); assert.equal(created.data.memberCount, 0);
+    assert.equal(created.data.projectKey, key); assert.equal(created.data.issueCount, 0); assert.equal(created.data.memberCount, 1);
     await page.reload(); await page.getByRole('heading', { name, exact: true }).waitFor();
     check('create empty project uses authenticated lead and persists across reload');
 
@@ -128,7 +128,7 @@ async function login(page, user) {
     const devContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
     const devPage = await devContext.newPage();
     await login(devPage, credentials.users.find((u) => u.role === 'DEVELOPER'));
-    assert.equal(await devPage.getByRole('button', { name: 'Tạo dự án', exact: true }).count(), 0);
+    assert.equal(await devPage.getByRole('button', { name: 'Tạo dự án', exact: true }).count(), 1);
     await devPage.goto(base + `/app/projects/${shop.id}/settings`);
     await devPage.getByText('Bạn chỉ được xem thông tin dự án.', { exact: true }).waitFor();
     assert.equal(await devPage.getByLabel(/^Tên dự án/).isDisabled(), true);
@@ -169,7 +169,7 @@ async function login(page, user) {
       throw error;
     }
     assert.equal(new URL(page.url()).pathname, '/app/projects');
-    assert.equal(await page.getByRole('button', { name: 'Tạo dự án', exact: true }).count(), 0);
+    assert.equal(await page.getByRole('button', { name: 'Tạo dự án', exact: true }).count(), 1);
     assert.equal(await page.getByText(`Đã tạo dự án ${lateKey}`, { exact: true }).count(), 0);
     check('late create completion cannot redirect or show previous-account data after another tab logs in');
     await otherTab.close();

@@ -22,7 +22,7 @@ export function ConfigurationAdmin({children}:{children:ReactNode}){
   if(denied||gate.data&&!gate.data.systemAdmin)return <StateView kind="forbidden" title="Chỉ quản trị viên hệ thống được cấu hình danh mục"/>;
   if(!gate.data)return <ReadError error={gate.error} retry={()=>void gate.refetch()}/>;
   return <div className="space-y-6"><PageHeading title="Cấu hình hệ thống" description="Danh mục và quy tắc chuyển trạng thái dùng chung cho tất cả dự án."/>
-    <nav aria-label="Cấu hình hệ thống" className="flex flex-wrap gap-5 border-b border-[#dfe1e6]">{[['users','Người dùng'],['issue-types','Loại công việc'],['statuses','Trạng thái'],['workflows','Workflow']].map(([key,label])=><Link key={key} href={'/app/admin/'+key} aria-current={path.endsWith('/'+key)?'page':undefined} className={'pb-3 text-sm '+(path.endsWith('/'+key)?'border-b-2 border-[#0052cc] font-semibold text-[#0052cc]':'text-[#42526e]')}>{label}</Link>)}</nav>
+    <nav aria-label="Cấu hình hệ thống" className="flex flex-wrap gap-5 border-b border-[#dfe1e6]">{[['users','Người dùng'],['roles','Vai trò & quyền'],['issue-types','Loại công việc'],['statuses','Trạng thái'],['workflows','Workflow']].map(([key,label])=><Link key={key} href={'/app/admin/'+key} aria-current={path.endsWith('/'+key)?'page':undefined} className={'pb-3 text-sm '+(path.endsWith('/'+key)?'border-b-2 border-[#0052cc] font-semibold text-[#0052cc]':'text-[#42526e]')}>{label}</Link>)}</nav>
     <ReadError error={gate.error} retry={()=>void gate.refetch()}/>{children}</div>;
 }
 

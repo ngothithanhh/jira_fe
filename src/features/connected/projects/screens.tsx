@@ -88,7 +88,7 @@ export function ConnectedProjectSettings() {
   const params = useParams<{ projectId: string }>();
   const { data } = useConnectedProject(projectIdFromRoute(params.projectId));
   const [tab,setTab]=useState<'info'|'types'|'workflow'>('info');
-  return data ? <div className="space-y-5"><TabBar label="Cài đặt dự án" tabs={[{value:'info',label:'Thông tin'},{value:'types',label:'Loại công việc'},{value:'workflow',label:'Workflow'}]} value={tab} onChange={setTab}/><div hidden={tab!=='info'}><ProjectSettingsForm key={data.project.projectId} project={data.project} canEdit={data.context.projectPermissions.includes('UPDATE_PROJECT')} canDelete={data.context.globalPermissions.includes('DELETE_PROJECT')} /></div>{tab==='types'&&<ProjectTypeSettings projectId={data.project.projectId}/ >}{tab==='workflow'&&<WorkflowScreen readOnly/>}</div> : null;
+  return data ? <div className="space-y-5"><TabBar label="Cài đặt dự án" tabs={[{value:'info',label:'Thông tin'},{value:'types',label:'Loại công việc'},{value:'workflow',label:'Workflow'}]} value={tab} onChange={setTab}/><div hidden={tab!=='info'}><ProjectSettingsForm key={data.project.projectId} project={data.project} canEdit={data.context.projectPermissions.includes('UPDATE_PROJECT')} canDelete={data.context.projectPermissions.includes('DELETE_PROJECT')} /></div>{tab==='types'&&<ProjectTypeSettings projectId={data.project.projectId}/ >}{tab==='workflow'&&<WorkflowScreen readOnly/>}</div> : null;
 }
 
 /** Form thông tin dùng fields đã duyệt; chỉ tên/mô tả được ghi, lead/key giữ read-only theo API thật. */
@@ -127,7 +127,7 @@ function ProjectSettingsForm({ project, canEdit, canDelete }: { project: Project
       <p className="text-sm text-[#6b778c]">Trưởng dự án: {project.leader?.userName || 'Chưa có người phụ trách'}</p>
       {canEdit && <div className="flex gap-2"><Btn type="submit" variant="primary" disabled={!dirty || busy}>{busy ? 'Đang lưu…' : 'Lưu'}</Btn><Btn variant="subtle" disabled={!dirty || busy} onClick={() => { setDraft(initial()); setErrors({}); save.reset(); }}>Hủy</Btn></div>}
     </form>
-    {canDelete && <Card title="Vùng nguy hiểm"><p className="mb-3 text-sm text-[#42526e]">Chỉ xóa được khi dự án không còn công việc, thành viên, sprint hoặc bảng liên kết.</p><Btn variant="danger" onClick={() => setDeleting(true)}>Xóa dự án</Btn></Card>}
+    {canDelete && <Card title="Vùng nguy hiểm"><p className="mb-3 text-sm text-[#42526e]">Chỉ xóa được khi dự án không còn công việc, sprint, board hoặc thành viên khác chủ dự án.</p><Btn variant="danger" onClick={() => setDeleting(true)}>Xóa dự án</Btn></Card>}
     {deleting && <DeleteConnectedProject project={projectItem(project)} onClose={() => setDeleting(false)} onDeleted={() => router.replace('/app/projects')} />}
   </div>;
 }

@@ -6,6 +6,7 @@ import { memberBody, memberRoute } from './members/contract.ts';
 import { collaborationRoute, commentBody, readAttachment, readAttachmentContent, UploadInputError, type CollaborationRoute } from './collaboration/contract.ts';
 import { configurationRoute,configurationBody,type ConfigurationAction } from './configuration/contract.ts';
 import {adminUserRoute,adminUserBody,type AdminUserAction} from './admin-users/contract.ts';
+import {adminRoleRoute,roleBody} from './admin-roles/contract.ts';
 
 const ACCESS = 'jira_access';
 const REFRESH = 'jira_refresh';
@@ -74,6 +75,8 @@ function validRouteId(id: string | undefined) {
  */
 export async function backendRoute(request: Request, path: string[]) {
   const route = path.join('/');
+  let adminRole:ReturnType<typeof adminRoleRoute>;
+  try{adminRole=adminRoleRoute(route,request.method,new URL(request.url).searchParams);}catch(error){return failure(400,(error as Error).message);}
   // API issue chỉ mở theo whitelist riêng, kiểm query trước khi đọc cookie hay gọi Spring Boot.
   let issue: IssueRoute | null;
   let board: BoardAction | null;
@@ -102,14 +105,14 @@ export async function backendRoute(request: Request, path: string[]) {
   const accountWrite = request.method === 'PATCH' && route === 'account/profile' ? 'profile'
     : request.method === 'POST' && route === 'account/password' ? 'password' : null;
   // Thêm tài khoản vào các API đã nối; giữ nguyên quyền truy cập project, board, thành viên, thông báo và báo cáo.
-  const protectedAction = readAction || notificationMutation || projectWrite || !!issue || !!board || !!member || !!accountWrite || !!collaboration || !!configuration || !!adminUser;
+  const protectedAction = readAction || notificationMutation || projectWrite || !!issue || !!board || !!member || !!accountWrite || !!collaboration || !!configuration || !!adminUser || !!adminRole;
   if (!authAction && !protectedAction) return failure(404, 'Chức năng chưa được kết nối.');
   // Tất cả mutation dùng cookie đều kiểm Origin; public auth vẫn không nhận Bearer cũ.
-  if ((authAction || notificationMutation || projectWrite || accountWrite || issue?.write || board?.write || collaboration?.write || configuration?.write || adminUser?.write || (member && member !== 'roles')) && !trustedOrigin(request)) return failure(403, 'Nguồn yêu cầu không hợp lệ.');
+  if ((authAction || notificationMutation || projectWrite || accountWrite || issue?.write || board?.write || collaboration?.write || configuration?.write || adminUser?.write || adminRole?.write || (member && member !== 'roles')) && !trustedOrigin(request)) return failure(403, 'Nguồn yêu cầu không hợp lệ.');
 
   // Chỉ chuyển query projectId hợp lệ; không chuyển actorId hoặc URL upstream từ người gọi.
   let suffix = issue?.suffix || board?.suffix || collaboration?.suffix || configuration?.suffix || adminUser?.suffix || '';
-  if (!issue && !board && !collaboration && !configuration && !adminUser && !notificationRead && !notificationMutation && !reportRead && route !== 'account/context' && new URL(request.url).searchParams.size) return failure(400, 'Tham số không hợp lệ.');
+  if (!issue && !board && !collaboration && !configuration && !adminUser && !adminRole && !notificationRead && !notificationMutation && !reportRead && route !== 'account/context' && new URL(request.url).searchParams.size) return failure(400, 'Tham số không hợp lệ.');
   if (route === 'account/context') {
     const query = new URL(request.url).searchParams;
     if ([...query.keys()].some((key) => key !== 'projectId')) return failure(400, 'Tham số không hợp lệ.');
@@ -134,6 +137,9 @@ export async function backendRoute(request: Request, path: string[]) {
   if (route === 'auth/logout' && !refresh) return clearSession(new NextResponse(null, { status: 204, headers: NO_STORE }));
 
   let body: string | FormData | undefined;
+  // Role chỉ nhận mã tên; delete không có body, không cho gán quyền hoặc actor qua endpoint CRUD.
+  if(adminRole?.write){const raw=await request.text();if(raw.length>1024)return failure(413,'Dữ liệu quá dài.');
+    try{body=roleBody(adminRole.kind,raw);}catch(error){return failure(400,(error as Error).message);}}
   // Enabled chỉ là boolean; gán/gỡ role không có body. Kiểm trước gọi /me hoặc dispatch mutation.
   if(adminUser?.write){const raw=await request.text();if(raw.length>1024)return failure(413,'Dữ liệu quá dài.');
     try{body=adminUserBody(adminUser.kind,raw);}catch{return failure(400,'Dữ liệu quản trị người dùng không hợp lệ.');}}
@@ -255,6 +261,8 @@ export async function backendRoute(request: Request, path: string[]) {
         message=configuration.kind==='rule'?'Cạnh workflow đã tồn tại.':configuration.kind==='type'?'Tên loại công việc đã tồn tại.':configuration.kind==='status'?'Tên trạng thái đã có hoặc nhóm khác nhóm cố định ban đầu.'
           :configuration.projectId!==undefined?'Loại đã gán, đang dùng hoặc là mặc định. Kiểm tra cấu hình trước khi gỡ/đổi.':'Cấu hình còn liên kết issue, project, mapping, workflow hoặc lịch sử nên chưa thể xóa.';
       }
+      if(adminRole&&upstream.status===409)message='Vai trò mặc định, tên bị trùng hoặc dữ liệu còn được sử dụng. Tải lại để kiểm tra.';
+      if(adminUser?.kind==='grant'&&upstream.status===400)message='Chỉ SYSTEM_ADMIN được gán toàn hệ thống. Role khác được gán ở trang Thành viên dự án.';
       const response = failure(upstream.status, message);
       return route === 'auth/refresh' && upstream.status === 401 ? clearSession(response) : response;
     }
@@ -272,7 +280,7 @@ export async function backendRoute(request: Request, path: string[]) {
     if (!text && !authAction) return new NextResponse(null, { status: upstream.status, headers: NO_STORE });
     const data = JSON.parse(text);
     // Comment/upload giữ201 từ BE; các route cũ giữ nguyên hợp đồng200 đã nối trước đó.
-    return authAction ? establishSession(data) : NextResponse.json(data, { headers: NO_STORE, status: collaboration||configuration ? upstream.status : 200 });
+    return authAction ? establishSession(data) : NextResponse.json(data, { headers: NO_STORE, status: collaboration||configuration||adminRole ? upstream.status : 200 });
   } catch {
     if(disablingSelf)return clearSession(failure(502,'Chưa xác nhận được kết quả tự khóa tài khoản.'));
     if (accountWrite === 'password') return clearSession(failure(502, PASSWORD_UNCERTAIN));

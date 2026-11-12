@@ -47,6 +47,6 @@ test('member BFF rejects extra parameters, bad IDs and cross-origin requests bef
   assert.equal((await call(base, 'POST', { userId: 2, roleId: 7, actorId: 1 })).status, 400);
   assert.equal((await call(base + '/2/role', 'PUT', { roleId: 0 })).status, 400);
   assert.equal((await call(base + '/2147483648', 'DELETE')).status, 400);
-  assert.equal((await call('user-role', 'POST', { roleName: 'SYSTEM_ADMIN' })).status, 404);
+  assert.equal((await call('roles/7/permissions', 'POST', { permissionId: 1 })).status, 404);
   assert.equal(fetch.mock.callCount(), 0);
 });
